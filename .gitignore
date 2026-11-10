@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.gradle/
+build/
+local.properties
+.idea/
+*.apk
+*.apks
+*.ipa
+*.dylib
+*.jks
+*.keystore
+*.mobileprovision
+.env
+.DS_Store

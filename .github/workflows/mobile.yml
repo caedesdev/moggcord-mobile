@@ -1,0 +1,95 @@
+name: Build Moggcord Mobile
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  shared:
+    name: Shared payload tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm test
+
+  android:
+    name: Android loader
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: shared
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-java@v6.2.0
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v6.4.1
+        with:
+          gradle-version: "8.13"
+      - run: npm ci
+      - run: npm run build
+      - name: Assemble development module
+        run: |
+          sdkmanager --install "platforms;android-36" "build-tools;35.0.0"
+          gradle -p android :loader:assembleDebug
+      - name: Verify APK and its embedded payload
+        run: |
+          apk=android/loader/build/outputs/apk/debug/loader-debug.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify "$apk"
+          unzip -p "$apk" assets/moggcord-mobile.js | cmp - dist/moggcord-mobile.js
+          test "$(unzip -p "$apk" assets/xposed_init)" = cc.moggcord.mobile.loader.MoggcordLoader
+          mkdir -p dist/artifact-android
+          cp "$apk" dist/artifact-android/Moggcord-Mobile-Loader-debug.apk
+          cp LICENSE NOTICE.md android/README.md dist/artifact-android/
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: Moggcord-Mobile-Android-dev
+          path: dist/artifact-android
+          if-no-files-found: error
+
+  ios:
+    name: iOS loader
+    runs-on: macos-15
+    timeout-minutes: 15
+    needs: shared
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: bash scripts/build-ios.sh
+      - name: Verify the iOS library and its embedded payload
+        run: |
+          xcrun vtool -show-build dist/ios/MoggcordMobile.dylib
+          node --input-type=module -e 'import fs from "node:fs"; if (!fs.readFileSync("dist/ios/MoggcordMobile.dylib").includes(fs.readFileSync("dist/moggcord-mobile.js"))) process.exit(1)'
+          mkdir -p dist/artifact-ios
+          cp dist/ios/MoggcordMobile.dylib LICENSE NOTICE.md ios/README.md ios/vendor/LICENSE-META dist/artifact-ios/
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: Moggcord-Mobile-iOS-dev
+          path: dist/artifact-ios
+          if-no-files-found: error
