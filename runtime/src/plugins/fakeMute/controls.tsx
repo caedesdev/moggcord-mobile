@@ -1,15 +1,18 @@
 /* Copyright (c) 2026 Moggcord contributors. SPDX-License-Identifier: GPL-3.0-or-later */
+import { t } from "@core/i18n";
 import { useProxy } from "@core/vendetta/storage";
-import { after } from "@lib/api/patcher";
+import { findAssetId } from "@lib/api/assets";
+import { after, before } from "@lib/api/patcher";
 import { findByProps } from "@metro";
+import { TableRow } from "@metro/common/components";
 import { findInReactTree } from "@lib/utils";
 import { cloneElement, createContext, isValidElement } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text } from "react-native";
 import { replaceVideoControl } from "../../../../shared/voice-controls";
 import { afterRender, moduleAt } from "../common";
+import { myVoiceChannel } from "../shared/calls";
 
 const Replacement = createContext<any>(null);
-let cameraPress: (() => void) | undefined;
 let svg: any;
 
 function GhostIcon({ color, slashed }: { color: string; slashed: boolean; }) {
@@ -26,34 +29,17 @@ function GhostIcon({ color, slashed }: { color: string; slashed: boolean; }) {
     </svg.Svg>;
 }
 
-function transformDrawers(node: any): any {
-    if (!isValidElement<any>(node)) return node;
-    if (typeof node.props.renderContent === "function") {
-        const original = node.props.renderContent;
-        return cloneElement(node, {
-            renderContent: (...args: any[]) => <View style={{ flex: 1 }}>
-                <View style={{ flex: 1 }}>{original(...args)}</View>
-                <Pressable accessibilityRole="button" accessibilityLabel="Camera" onPress={() => cameraPress?.()}
-                    style={{ minHeight: 48, paddingHorizontal: 18, flexDirection: "row", alignItems: "center" }}>
-                    <Text style={{ color: "#f2f3f5", fontSize: 15, fontWeight: "600" }}>Camera</Text>
-                    <Text style={{ marginLeft: "auto", color: "#b5bac1", fontSize: 18 }}>›</Text>
-                </Pressable>
-            </View>
-        } as any);
-    }
-    const children = node.props.children;
-    if (children == null) return node;
-    const next = Array.isArray(children) ? children.map(transformDrawers) : transformDrawers(children);
-    return cloneElement(node, undefined, next);
-}
-
 export function installFakeDeafenControls(plugin: any, toggle: () => void) {
     const hooks = moduleAt<any>("modules/voice_panel/native/controls/useControlsButtons.tsx");
     const video = moduleAt<any>("modules/voice_panel/native/controls/buttons/VoicePanelVideoButton.tsx");
-    const drawer = moduleAt<any>("modules/voice_panel/native/controls/VoicePanelControlsDrawer.tsx");
+    const voiceRows = moduleAt<any>("modules/voice_panel/native/controls/VoicePanelVoiceControlsButtons.tsx");
+    const groups = moduleAt<any>("design/components/TableRow/native/TableRowGroup.native.tsx");
     const useVoiceStyles = moduleAt<any>("modules/voice_panel/native/controls/buttons/VoicePanelStyles.tsx")?.useVoicePanelButtonStyles;
     const key = typeof hooks?.useControlsButtons === "function" ? "useControlsButtons" : "default";
-    if (typeof hooks?.[key] !== "function" || !video?.default) return () => {};
+    if (typeof hooks?.[key] !== "function" || !video?.default || typeof groups?.TableRowGroup !== "function" ||
+        !voiceRows?.HideSelfVideo || !voiceRows?.AudioRouteButton) return () => {};
+
+    let camera: { channelId: string; onPress: () => void; disabled: boolean } | undefined;
 
     function StyledButton({ tree, state, wrapperSpecs }: any) {
         // The same hook and muted styles used by Discord's MicButton, including theme changes.
@@ -77,14 +63,33 @@ export function installFakeDeafenControls(plugin: any, toggle: () => void) {
     const undoVideo = afterRender(video, "default", (props, tree) =>
         <Replacement.Consumer>{state => {
             if (!state || !isValidElement<any>(tree)) return tree;
-            if (typeof tree.props.onPress === "function") cameraPress = tree.props.onPress;
-            else {
-                const button = findInReactTree(tree, node => typeof node?.props?.onPress === "function");
-                if (button) cameraPress = button.props.onPress;
-            }
+            const button = typeof tree.props.onPress === "function" ? tree :
+                findInReactTree(tree, node => typeof node?.props?.onPress === "function");
+            const channelId = myVoiceChannel();
+            camera = channelId && button ? { channelId, onPress: button.props.onPress, disabled: !!button.props.disabled } : undefined;
             return <StyledButton tree={tree} state={state} wrapperSpecs={props.wrapperSpecs} />;
         }}</Replacement.Consumer>);
     if (!undoVideo) return () => {};
+
+    // The actual row types identify the Voice Settings group in every language.
+    const undoCameraRow = before("TableRowGroup", groups, ([props, ...args]) => {
+        const children = props?.children;
+        if (!Array.isArray(children)) return;
+        const ownCamera = children.findIndex(child => child?.type === voiceRows.HideSelfVideo);
+        if (ownCamera < 0 || children.some(child => child?.key === "moggcord-camera")) return;
+        const audioOutput = children.find(child => child?.type === voiceRows.AudioRouteButton);
+        const channelId = audioOutput?.props.channel?.id;
+        if (!channelId) return;
+        const cameraIcon = findAssetId("VideoIcon");
+        const cameraRow = <TableRow key="moggcord-camera" label={t("Camera")} trailing={TableRow.Arrow}
+            icon={<TableRow.Icon source={cameraIcon} />}
+            disabled={!audioOutput.props.connected || camera?.channelId !== channelId || camera?.disabled}
+            onPress={() => {
+                if (audioOutput.props.connected && camera?.channelId === channelId && !camera.disabled && myVoiceChannel() === channelId)
+                    camera.onPress();
+            }} />;
+        return [{ ...props, children: [...children.slice(0, ownCamera + 1), cameraRow, ...children.slice(ownCamera + 1)] }, ...args];
+    });
 
     function FakeControl({ render, originalKey, props }: any) {
         const store = useProxy(plugin.store);
@@ -96,11 +101,10 @@ export function installFakeDeafenControls(plugin: any, toggle: () => void) {
     const undoButtons = after(key, hooks, (_args, buttons) =>
         replaceVideoControl(buttons, render => (originalKey: string, props: any) =>
             <FakeControl key={originalKey} render={render} originalKey={originalKey} props={props} />));
-    const undoDrawer = drawer?.default ? afterRender(drawer, "default", (_props, tree) => transformDrawers(tree)) : null;
     return () => {
         undoButtons();
+        undoCameraRow();
         undoVideo();
-        undoDrawer?.();
-        cameraPress = undefined;
+        camera = undefined;
     };
 }

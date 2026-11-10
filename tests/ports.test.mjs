@@ -154,36 +154,53 @@ test("the real fake control follows native muted styles and keeps its slash insi
   const patches = new Map();
   const buttonProps = Object.freeze({ width: 48, height: 48 });
   const wrapperSpecs = { value: { drawerMode: false } };
-  const camera = () => {};
+  let openedCamera = 0;
+  let activeChannel = "voice-room";
+  const camera = () => { openedCamera++; };
   const tree = { type: "AnimatedButtonWrapper", props: { props: buttonProps, onPress: camera, style: { backgroundColor: "white" } } };
   const styles = {
     iconBg: { backgroundColor: "transparent" },
     iconBgVoiceMuted: { backgroundColor: "native-muted-background", borderWidth: 1 },
     iconFill: { color: "native-normal" }, iconFillRed: { color: "native-muted-red" }
   };
-  const video = { default() {} }, drawer = { default() {} }, hooks = { useControlsButtons() {} };
+  const video = { default() {} }, hooks = { useControlsButtons() {} };
+  const voiceRows = { HideSelfVideo() {}, AudioRouteButton() {} };
+  const groups = { TableRowGroup() {} };
   const modules = {
     "modules/voice_panel/native/controls/useControlsButtons.tsx": hooks,
     "modules/voice_panel/native/controls/buttons/VoicePanelVideoButton.tsx": video,
-    "modules/voice_panel/native/controls/VoicePanelControlsDrawer.tsx": drawer,
+    "modules/voice_panel/native/controls/VoicePanelVoiceControlsButtons.tsx": voiceRows,
+    "design/components/TableRow/native/TableRowGroup.native.tsx": groups,
     "modules/voice_panel/native/controls/buttons/VoicePanelStyles.tsx": {
       useVoicePanelButtonStyles(specs) { assert.equal(specs, wrapperSpecs); return styles; }
     }
   };
-  const jsx = (type, props) => ({ type, props });
+  const jsx = (type, props, key) => ({ type, props, key });
   const api = await nativeModule("runtime/src/plugins/fakeMute/controls.tsx", {
+    "@core/i18n": { t: value => value },
     "react/jsx-runtime": { jsx, jsxs: jsx },
     "react": {
       createContext: () => ({ Consumer: "Consumer", Provider: "Provider" }),
       isValidElement: value => !!value?.type,
       cloneElement: (value, props) => ({ ...value, props: { ...value.props, ...props } })
     },
-    "react-native": { View: "View", Text: "Text", Pressable: "Pressable", StyleSheet: { flatten: value => value } },
+    "react-native": { Text: "Text", StyleSheet: { flatten: value => value } },
     "@core/vendetta/storage": { useProxy: value => value },
-    "@lib/api/patcher": { after: () => () => {} },
+    "@lib/api/assets": { findAssetId: () => 123 },
+    "@lib/api/patcher": {
+      after: () => () => {},
+      before(key, target, callback) {
+        assert.equal(key, "TableRowGroup");
+        assert.equal(target, groups);
+        patches.set(target, callback);
+        return () => patches.delete(target);
+      }
+    },
     "@metro": { findByProps: () => ({ Svg: "Svg", Path: "Path" }) },
+    "@metro/common/components": { TableRow: Object.assign(() => {}, { Arrow: "Arrow", Icon: "RowIcon" }) },
     "@lib/utils": { findInReactTree: () => null },
     "../../../../shared/voice-controls": { replaceVideoControl },
+    "../shared/calls": { myVoiceChannel: () => activeChannel },
     "../common": {
       moduleAt: path => modules[path],
       afterRender(module, key, callback) { patches.set(module, callback); return () => patches.delete(module); }
@@ -211,6 +228,30 @@ test("the real fake control follows native muted styles and keeps its slash insi
     assert.equal(svg.props.children.filter(Boolean).length, on ? 2 : 1);
     assert(svg.props.children.filter(Boolean).every(child => child.type === "Path"));
   }
+  const applyGroup = patches.get(groups);
+  const ownCamera = jsx(voiceRows.HideSelfVideo, {});
+  const audioOutput = jsx(voiceRows.AudioRouteButton, { channel: { id: activeChannel }, connected: true });
+  const invite = jsx("InviteButton", {});
+  const group = Object.freeze({ title: "Sprach-Einstellungen", children: Object.freeze([audioOutput, ownCamera, invite]) });
+  const [modified] = applyGroup([group]);
+  const row = modified.children[2];
+  assert.equal(modified.children[1], ownCamera);
+  assert.equal(modified.children[3], invite);
+  assert.equal(group.children.length, 3);
+  assert.equal(row.props.label, "Camera");
+  assert.equal(row.props.icon.props.source, 123);
+  assert.equal(row.props.disabled, false);
+  row.props.onPress();
+  assert.equal(openedCamera, 1);
+  assert.equal(applyGroup([modified]), undefined);
+  assert.equal(applyGroup([{ children: [audioOutput, invite] }]), undefined);
+  activeChannel = "different-room";
+  const [disconnected] = applyGroup([{ children: [jsx(voiceRows.AudioRouteButton, {
+    channel: { id: "voice-room" }, connected: false
+  }), ownCamera] }]);
+  assert.equal(disconnected.children[2].props.disabled, true);
+  row.props.onPress();
+  assert.equal(openedCamera, 1);
   stop();
   assert.equal(patches.size, 0);
   assert.equal(tree.props.onPress, camera);
