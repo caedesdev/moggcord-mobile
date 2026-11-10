@@ -12,7 +12,7 @@ On Windows or macOS, you can also connect your device, load the IPA into [Sidelo
 
 ## Build a test IPA
 
-1. Download and unzip the [iOS build kit](https://github.com/caedesdev/moggcord-mobile/releases/tag/ios-v0.4.0) on your computer.
+1. Open [the iOS downloads](https://moggcord.cc/#download-panel-ios), expand **Need to build an IPA?** and unzip the build kit on your computer.
 2. With Python 3.12, run the following command in that folder. Use an unencrypted arm64 Discord 344.1 IPA (build 110861) that you are allowed to modify.
 
 ```sh
@@ -38,6 +38,8 @@ The result is `dist/ios/MoggcordMobile.dylib`. Successful [GitHub Actions runs](
 Report the iOS version and Discord build if the Moggcord entry is missing. Sideloaded apps can have different availability for push notifications and other entitlement-dependent features.
 
 Open **Moggcord Mobile → Plugins**, search for **ProfileSets** and enable it. You can also enable it from its **Community** entry. The built-in version runs on mobile. Desktop ZIPs are for the desktop client.
+
+Theme Library lets you browse custom themes on iOS. Applying one requires a loader with support for Discord's custom colors.
 
 Message Logger can retain messages received by the running app. iOS can suspend Discord in the background, and force-quitting stops its JavaScript runtime. Turning notifications on does not keep the plugin running or restore deleted messages that never reached it. The loader does not access notifications belonging to a separate Discord installation.
 

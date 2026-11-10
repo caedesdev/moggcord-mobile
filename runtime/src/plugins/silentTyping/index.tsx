@@ -11,12 +11,20 @@ import { registerCommand } from "@lib/api/commands";
 import { ApplicationCommandOptionType } from "@lib/api/commands/types";
 import { showToast } from "@lib/ui/toasts";
 import { messageUtil } from "@metro/common";
-import { View } from "react-native";
+import { View, type ViewStyle } from "react-native";
 
 import { definePlugin } from "../api";
 import { addChatButton, getChatInputActionButton, getStore, moduleAt, onAction } from "../common";
 
 const KeyboardIcon = () => moduleAt("design/components/Icon/native/redesign/generated/KeyboardIcon.tsx")?.KeyboardIcon;
+const keyboardSlash: ViewStyle = {
+    left: "50%",
+    top: "50%",
+    width: 18,
+    height: 2,
+    marginLeft: -9,
+    marginTop: -1,
+};
 
 const plugin = definePlugin({
     id: "moggcord.silent-typing",
@@ -96,7 +104,7 @@ function SilentTypingButton() {
     return <Button
         accessibilityLabel={t("Toggle silent typing")}
         accessibilityState={{ checked: store.isEnabled }}
-        IconComponent={store.isEnabled ? (props: any) => <SlashedIcon Icon={Icon} {...props} /> : Icon}
+        IconComponent={store.isEnabled ? (props: any) => <SlashedIcon Icon={Icon} {...props} slashStyle={keyboardSlash} /> : Icon}
         onPress={() => {
             store.isEnabled = !store.isEnabled;
             showToast(store.isEnabled ? t("Silent typing enabled!") : t("Silent typing disabled!"), findAssetId("KeyboardIcon"));
@@ -105,12 +113,12 @@ function SilentTypingButton() {
 }
 
 /** The icon with a red line through it, for "on" states of hiding features */
-export function SlashedIcon({ Icon, ...props }: { Icon: any; style?: any; }) {
+export function SlashedIcon({ Icon, slashStyle, ...props }: { Icon: any; style?: any; slashStyle?: ViewStyle; }) {
     return <View>
         <Icon {...props} />
         <View
             pointerEvents="none"
-            style={{
+            style={[{
                 position: "absolute",
                 left: "-10%",
                 top: "45%",
@@ -119,7 +127,7 @@ export function SlashedIcon({ Icon, ...props }: { Icon: any; style?: any; }) {
                 borderRadius: 2,
                 backgroundColor: "#ED4245",
                 transform: [{ rotate: "-45deg" }],
-            }}
+            }, slashStyle]}
         />
     </View>;
 }
