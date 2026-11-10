@@ -12,6 +12,7 @@
 #include "MobilePayload.h"
 #import "UpdateStore.h"
 #include "UpdatePublicKey.h"
+#import "PlatformIndicators.h"
 
 namespace {
 using facebook::jsi::Runtime;
@@ -87,6 +88,11 @@ void initializeRuntime(id host, SEL selector, id instance, Runtime &runtime) {
             });
             NSDictionary *selected = [store selectBundle];
             installUpdater(runtime, store, selected);
+            if (MoggcordInstallPlatformIndicators()) {
+                facebook::jsi::Object icons(runtime);
+                icons.setProperty(runtime, "apiVersion", 1);
+                runtime.global().setProperty(runtime, "__MOGGCORD_PLATFORM_ICONS__", std::move(icons));
+            }
             NSData *updated = selected[@"source"];
             std::string source = updated ? std::string(reinterpret_cast<const char *>(updated.bytes), updated.length)
                 : std::string(reinterpret_cast<const char *>(moggcord_payload), sizeof(moggcord_payload));

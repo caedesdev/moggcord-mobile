@@ -41,7 +41,8 @@ int main() { @autoreleasepool {
     NSString *signedFirst = envelope(privateKey, first, @"1.1.0", nil);
     check([[store verifyEnvelope:signedFirst error:nil][@"version"] isEqual:@"1.1.0"], "A valid update was rejected");
     check([store verifyEnvelope:@"{\"payload\":\"e30=\",\"signature\":\"AA==\"}" error:nil] == nil, "An invalid signature was accepted");
-    check([store verifyEnvelope:envelope(privateKey, first, @"1.1.0", @{@"minLoader": @2}) error:nil] == nil, "A newer loader requirement was ignored");
+    check([store verifyEnvelope:envelope(privateKey, first, @"1.1.0", @{@"minLoader": @2}) error:nil] != nil, "The current loader version was rejected");
+    check([store verifyEnvelope:envelope(privateKey, first, @"1.1.0", @{@"minLoader": @3}) error:nil] == nil, "A newer loader requirement was ignored");
     check([store verifyEnvelope:envelope(privateKey, first, @"1.1.0", @{@"discordBuild": @"other"}) error:nil] == nil, "A different Discord build was accepted");
     check([store verifyEnvelope:envelope(privateKey, first, @"1.1.0", @{@"bundle": @"https://example.com/code.js"}) error:nil] == nil, "An unapproved origin was accepted");
     check([store verifyEnvelope:envelope(privateKey, first, @"1.1.0", @{@"bytes": @YES}) error:nil] == nil, "A boolean byte count was accepted");

@@ -47,6 +47,6 @@ The loader attaches to the host's React Native runtime initialization and evalua
 
 ## Update without reinstalling
 
-Install the 0.4.0 loader once. In **Moggcord Mobile → Settings → Moggcord updates**, check for updates and choose **Update and restart**. Compatible plugin and UI updates are downloaded, verified and staged in the app's private storage. Discord reloads to apply them; native-loader and Discord app updates still need a new signed IPA.
+Install the 0.4.5 loader once to enable the native Platform Indicators. Earlier loaders need a newly signed IPA for this feature. In **Moggcord Mobile → Settings → Moggcord updates**, check for updates and choose **Update and restart**. Compatible plugin and UI updates are downloaded, verified and staged in the app's private storage. Discord reloads to apply them; native-loader and Discord app updates still need a new signed IPA.
 
 The loader pins a P-256 verification key and checks the manifest signature, payload hash, size, Discord build and loader compatibility before loading an update. An update that does not confirm startup rolls back on the next launch. See [update development](../docs/in-app-updates.md).

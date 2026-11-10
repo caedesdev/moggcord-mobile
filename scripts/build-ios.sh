@@ -9,7 +9,7 @@ mkdir -p dist/ios/generated
 node scripts/embed-ios.mjs
 xcrun --sdk iphoneos clang++ -dynamiclib -arch arm64 -miphoneos-version-min=16.0 \
   -std=c++17 -fobjc-arc -fvisibility=hidden -Wall -Wextra \
-  -I ios/vendor -I dist/ios/generated -framework Foundation -framework Security \
+  -I ios/vendor -I dist/ios/generated -framework Foundation -framework Security -framework UIKit \
   -Wl,-undefined,dynamic_lookup -Wl,-install_name,@rpath/MoggcordMobile.dylib \
-  ios/MoggcordMobile.mm ios/UpdateStore.mm -o dist/ios/MoggcordMobile.dylib
+  ios/MoggcordMobile.mm ios/UpdateStore.mm ios/PlatformIndicators.mm -o dist/ios/MoggcordMobile.dylib
 xcrun lipo -archs dist/ios/MoggcordMobile.dylib | grep -qx arm64

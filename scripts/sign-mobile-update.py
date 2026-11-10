@@ -29,7 +29,8 @@ bundle = (root / "dist/moggcord-mobile.js").read_bytes()
 if not 0 < len(bundle) <= 8 * 1024 * 1024:
     raise SystemExit("The built runtime has an invalid size.")
 revision = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip()
-manifest = {"schema": 1, "platform": "ios", "version": version, "minLoader": 1, "discordBuild": "110861",
+loader_version = int(re.search(r"moggcord_loader_version\s*=\s*(\d+)", (root / "ios/LoaderVersion.h").read_text())[1])
+manifest = {"schema": 1, "platform": "ios", "version": version, "minLoader": loader_version, "discordBuild": "110861",
             "revision": revision, "bundle": f"https://moggcord.cc/mobile/updates/ios/{version}/moggcord-mobile.js",
             "bytes": len(bundle), "sha256": hashlib.sha256(bundle).hexdigest()}
 payload = json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode()

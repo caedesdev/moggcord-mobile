@@ -2,6 +2,7 @@
 #import "UpdateStore.h"
 #import <Security/Security.h>
 #import <CommonCrypto/CommonDigest.h>
+#include "LoaderVersion.h"
 
 namespace {
 constexpr NSUInteger maxBundle = 8 * 1024 * 1024;
@@ -82,7 +83,7 @@ BOOL integer(id number, NSUInteger min, NSUInteger max) {
         !matches(manifest[@"sha256"], @"^[a-f0-9]{64}$") || !integer(manifest[@"bytes"], 1, maxBundle)) {
         fail(error, @"The verified update manifest is incompatible."); return nil;
     }
-    if (!integer(manifest[@"minLoader"], 1, 1)) {
+    if (!integer(manifest[@"minLoader"], 1, moggcord_loader_version)) {
         fail(error, @"This update needs a newer loader. Install the latest IPA once."); return nil;
     }
     if (![manifest[@"discordBuild"] isEqual:self.hostBuild]) {

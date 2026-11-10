@@ -53,6 +53,7 @@ public final class MoggcordLoader implements IXposedHookZygoteInit, IXposedHookL
             Method file = delegate.getDeclaredMethod(FILE_LOADER, String.class, String.class, boolean.class);
             Method assets = delegate.getDeclaredMethod("loadScriptFromAssets", AssetManager.class, String.class, boolean.class);
             File payload = installPayload(new File(param.appInfo.dataDir, "code_cache"));
+            PlatformIndicators.install();
             XC_MethodHook beforeHostBundle = new XC_MethodHook() {
                 @Override
                 protected void beforeHookedMethod(MethodHookParam call) {
@@ -107,6 +108,7 @@ public final class MoggcordLoader implements IXposedHookZygoteInit, IXposedHookL
                 throw new IOException("The loader has no valid embedded payload");
             }
             try (InputStream input = module.getInputStream(entry); OutputStream target = Files.newOutputStream(temporary.toPath())) {
+                target.write("globalThis.__MOGGCORD_PLATFORM_ICONS__={apiVersion:1};\n".getBytes(java.nio.charset.StandardCharsets.UTF_8));
                 byte[] buffer = new byte[8192];
                 int total = 0;
                 for (int size; (size = input.read(buffer)) != -1; ) {

@@ -84,6 +84,13 @@ jobs:
       - run: npm run build
       - name: Test signed runtime updates and startup recovery
         run: bash scripts/test-ios-updates.sh
+      - name: Test native platform indicator rendering on iOS
+        run: bash scripts/test-ios-platform-icons.sh
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: Moggcord-Mobile-native-icons-preview
+          path: dist/tests/platform-indicators-*
+          if-no-files-found: error
       - run: bash scripts/build-ios.sh
       - name: Verify the iOS library and its embedded payload
         run: |
