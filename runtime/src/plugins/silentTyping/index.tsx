@@ -11,20 +11,25 @@ import { registerCommand } from "@lib/api/commands";
 import { ApplicationCommandOptionType } from "@lib/api/commands/types";
 import { showToast } from "@lib/ui/toasts";
 import { messageUtil } from "@metro/common";
-import { View, type ViewStyle } from "react-native";
+import { StyleSheet, View, type ImageStyle, type StyleProp } from "react-native";
 
 import { definePlugin } from "../api";
 import { addChatButton, getChatInputActionButton, getStore, moduleAt, onAction } from "../common";
 
 const KeyboardIcon = () => moduleAt("design/components/Icon/native/redesign/generated/KeyboardIcon.tsx")?.KeyboardIcon;
-const keyboardSlash: ViewStyle = {
-    left: "50%",
-    top: "50%",
-    width: 18,
-    height: 2,
-    marginLeft: -9,
-    marginTop: -1,
-};
+const keyboardStyles = StyleSheet.create({
+    overlay: {
+        ...StyleSheet.absoluteFillObject,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    slash: {
+        height: 2,
+        borderRadius: 1,
+        backgroundColor: "#ED4245",
+        transform: [{ rotate: "-45deg" }],
+    },
+});
 
 const plugin = definePlugin({
     id: "moggcord.silent-typing",
@@ -95,6 +100,21 @@ function isDirectMessage(channelId: string) {
     return channel ? !channel.guild_id : false;
 }
 
+function SilentKeyboardIcon({ Icon, style, ...props }: { Icon: any; style?: StyleProp<ImageStyle>; }) {
+    const imageStyle = StyleSheet.flatten(style);
+    // Discord passes custom icon dimensions in its chat action button's style.
+    const width = typeof imageStyle?.width === "number" ? imageStyle.width : 24;
+    const height = typeof imageStyle?.height === "number" ? imageStyle.height : width;
+    const frame = { width, height };
+
+    return <View style={frame} pointerEvents="none" accessible={false}>
+        <Icon {...props} style={[style, frame]} />
+        <View style={keyboardStyles.overlay}>
+            <View style={[keyboardStyles.slash, { width: Math.min(width, height) * 0.9 }]} />
+        </View>
+    </View>;
+}
+
 function SilentTypingButton() {
     const store = useProxy(plugin.store);
     const Button = getChatInputActionButton();
@@ -104,7 +124,7 @@ function SilentTypingButton() {
     return <Button
         accessibilityLabel={t("Toggle silent typing")}
         accessibilityState={{ checked: store.isEnabled }}
-        IconComponent={store.isEnabled ? (props: any) => <SlashedIcon Icon={Icon} {...props} slashStyle={keyboardSlash} /> : Icon}
+        IconComponent={store.isEnabled ? (props: any) => <SilentKeyboardIcon {...props} Icon={Icon} /> : Icon}
         onPress={() => {
             store.isEnabled = !store.isEnabled;
             showToast(store.isEnabled ? t("Silent typing enabled!") : t("Silent typing disabled!"), findAssetId("KeyboardIcon"));
@@ -113,12 +133,12 @@ function SilentTypingButton() {
 }
 
 /** The icon with a red line through it, for "on" states of hiding features */
-export function SlashedIcon({ Icon, slashStyle, ...props }: { Icon: any; style?: any; slashStyle?: ViewStyle; }) {
+export function SlashedIcon({ Icon, ...props }: { Icon: any; style?: any; }) {
     return <View>
         <Icon {...props} />
         <View
             pointerEvents="none"
-            style={[{
+            style={{
                 position: "absolute",
                 left: "-10%",
                 top: "45%",
@@ -127,7 +147,7 @@ export function SlashedIcon({ Icon, slashStyle, ...props }: { Icon: any; style?:
                 borderRadius: 2,
                 backgroundColor: "#ED4245",
                 transform: [{ rotate: "-45deg" }],
-            }, slashStyle]}
+            }}
         />
     </View>;
 }

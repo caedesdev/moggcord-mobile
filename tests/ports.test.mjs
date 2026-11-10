@@ -130,6 +130,58 @@ test("the mobile screen opens the real list without desktop catalog selectors", 
 });
 
 
+test("Silent Typing centers its slash on the native keyboard image at the chat button's icon size", async () => {
+  const jsx = (type, props) => ({ type, props });
+  const nativeIcon = () => {};
+  const store = { isEnabled: true, button: "right" };
+  let control;
+  const plugin = await port("silentTyping", {
+    "@core/i18n": { t: value => value, tx: value => value },
+    "@core/vendetta/storage": { useProxy: value => value },
+    "@lib/api/assets": { findAssetId: () => 1 },
+    "@lib/api/commands": { registerCommand: () => () => {} },
+    "@lib/api/commands/types": { ApplicationCommandOptionType: { BOOLEAN: 5 } },
+    "@lib/ui/toasts": { showToast() {} },
+    "@metro/common": { messageUtil: {} },
+    "react/jsx-runtime": { jsx, jsxs: jsx },
+    "react-native": {
+      View: "View",
+      StyleSheet: {
+        create: styles => styles,
+        flatten: style => Array.isArray(style) ? Object.assign({}, ...style) : style,
+        absoluteFillObject: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0 }
+      }
+    },
+    "../api": { definePlugin: definition => ({ ...definition, store }) },
+    "../common": {
+      moduleAt: () => ({ KeyboardIcon: nativeIcon }),
+      getChatInputActionButton: () => "ChatInputActionButton",
+      addChatButton: button => { control = button; return () => {}; },
+      onAction: () => () => {}
+    }
+  });
+  plugin.start({ store, cleanup() {} });
+  const button = control.render();
+  for (const size of [20, 24]) {
+    const style = [{ width: size, height: size }, { tintColor: "#b0b0b5" }];
+    const component = button.props.IconComponent({ style, size: "custom" });
+    const frame = component.type(component.props);
+    const [keyboard, overlay] = frame.props.children;
+    assert.equal(keyboard.type, nativeIcon);
+    assert.equal(keyboard.props.size, "custom");
+    assert.equal(keyboard.props.style[0], style);
+    assert.equal(keyboard.props.style[1], frame.props.style);
+    assert.equal(frame.props.style.width, size);
+    assert.equal(frame.props.style.height, size);
+    assert.deepEqual({ ...overlay.props.style }, {
+      position: "absolute", top: 0, right: 0, bottom: 0, left: 0, alignItems: "center", justifyContent: "center"
+    });
+    assert.equal(overlay.props.children.props.style[1].width, size * 0.9);
+  }
+  button.props.onPress();
+  assert.equal(control.render().props.IconComponent, nativeIcon);
+});
+
 test("the camera slot uses the fake control without changing other call buttons", () => {
   const camera = { key: "connected-video", width: 48, x: 16, render: () => "camera" };
   const mic = { key: "connected-mic", render: () => "microphone" };
