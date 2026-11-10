@@ -7,9 +7,6 @@ val payloadAssets = layout.buildDirectory.dir("generated/moggcord/assets")
 val prepareMoggcordPayload by tasks.registering(Copy::class) {
     from(sharedBundle)
     into(payloadAssets)
-    doFirst {
-        check(sharedBundle.asFile.isFile) { "Run npm run build at the root of Moggcord Mobile first." }
-    }
 }
 
 android {
@@ -31,7 +28,12 @@ android {
     }
 }
 
-tasks.named("preBuild") { dependsOn(prepareMoggcordPayload) }
+tasks.named("preBuild") {
+    dependsOn(prepareMoggcordPayload)
+    doFirst {
+        check(sharedBundle.asFile.isFile) { "Run npm run build at the root of Moggcord Mobile first." }
+    }
+}
 
 dependencies {
     compileOnly("de.robv.android.xposed:api:82")

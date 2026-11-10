@@ -12,4 +12,4 @@ xcrun --sdk iphoneos clang++ -dynamiclib -arch arm64 -miphoneos-version-min=16.0
   -I ios/vendor -I dist/ios/generated -framework Foundation \
   -Wl,-undefined,dynamic_lookup -Wl,-install_name,@rpath/MoggcordMobile.dylib \
   ios/MoggcordMobile.mm -o dist/ios/MoggcordMobile.dylib
-xcrun lipo -verify_arch arm64 dist/ios/MoggcordMobile.dylib
+xcrun lipo -archs dist/ios/MoggcordMobile.dylib | grep -qx arm64
