@@ -1,0 +1,171 @@
+import { t } from "@core/i18n";
+import { CardWrapper } from "@core/ui/components/AddonCard";
+import { UnifiedPluginModel } from "@core/ui/settings/pages/Plugins/models";
+import { usePluginCardStyles } from "@core/ui/settings/pages/Plugins/usePluginCardStyles";
+import { findAssetId } from "@lib/api/assets";
+import { NavigationNative, tokens } from "@metro/common";
+import { Card, IconButton, Stack, TableSwitch, Text } from "@metro/common/components";
+import { showSheet } from "@ui/sheets";
+import chroma from "chroma-js";
+import { createContext, useContext, useMemo } from "react";
+import { Image, View } from "react-native";
+
+const CardContext = createContext<{ plugin: UnifiedPluginModel, result: Fuzzysort.KeysResult<UnifiedPluginModel>; }>(null!);
+const useCardContext = () => useContext(CardContext);
+
+function getHighlightColor(): import("react-native").ColorValue {
+    return chroma(tokens.unsafe_rawColors.YELLOW_300).alpha(0.3).hex();
+}
+
+function Title() {
+    const styles = usePluginCardStyles();
+    const { plugin, result } = useCardContext();
+
+    // could be empty if the plugin name is irrelevant!
+    const highlightedNode = result[0].highlight((m, i) =>
+        <Text key={i} style={{ backgroundColor: getHighlightColor() }}>
+            {m}
+        </Text>
+    );
+
+    const icon = plugin.icon && findAssetId(plugin.icon);
+
+    const textNode = (
+        <Text
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.8}
+            variant="heading-lg/semibold"
+        >
+            {highlightedNode.length ? highlightedNode : plugin.name}
+        </Text>
+    );
+
+    return <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 1 }}>
+        {icon && <Image
+            style={styles.smallIcon}
+            source={icon}
+        />}
+        {textNode}
+    </View>;
+}
+
+/** Moggcord PC's add-on card badges */
+function Badge({ text, color }: { text: string; color: string; }) {
+    return <View style={{ backgroundColor: color, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 }}>
+        <Text variant="text-xxs/bold" style={{ color: "#FFFFFF" }}>{text}</Text>
+    </View>;
+}
+
+/** The NEW and POPULAR badges, and the authors of plugins that have them (Moggcord's own don't list any) */
+function Authors() {
+    const { plugin, result } = useCardContext();
+    const styles = usePluginCardStyles();
+
+    const authors = plugin.authors ?? [];
+    const badges = plugin.getBadges();
+    if (!authors.length && !badges.length && !plugin.isNew && plugin.popular == null) return null;
+
+    // could be empty if the author(s) are irrelevant with the search!
+    const highlightedNode = result[2].highlight((m, i) =>
+        <Text key={i} style={{ backgroundColor: getHighlightColor() }}>
+            {m}
+        </Text>
+    );
+
+    // The names may be highlighted search matches, so they go between the two halves of the sentence
+    const [byBefore, byAfter = ""] = t("by {authors}").split("{authors}");
+    const authorText = highlightedNode.length > 0 ? highlightedNode : authors.map(a => a.name).join(", ");
+
+    return (
+        <View style={{ flexDirection: "row", flexWrap: "wrap", flexShrink: 1, gap: 4, alignItems: "center" }}>
+            {plugin.isNew && <Badge text={t("NEW")} color="#ED4245" />}
+            {plugin.popular != null && <Badge text={t("POPULAR")} color="#5865F2" />}
+            {authors.length > 0 && <Text variant="text-sm/semibold" color="text-muted">
+                {byBefore}{authorText}{byAfter}
+            </Text>}
+            {badges.length > 0 && <View style={styles.badgesContainer}>
+                {badges.map((b, i) => <Image
+                    key={i}
+                    source={b.source}
+                    style={styles.badgeIcon}
+                />)}
+            </View>}
+        </View>
+    );
+}
+
+function Description() {
+    const { plugin, result } = useCardContext();
+
+    // could be empty if the description is irrelevant with the search!
+    const highlightedNode = result[1].highlight((m, i) =>
+        <Text key={i} style={{ backgroundColor: getHighlightColor() }}>{m}</Text>
+    );
+
+    return <Text variant="text-md/medium">
+        {highlightedNode.length ? highlightedNode : plugin.description}
+    </Text>;
+}
+
+const Actions = () => {
+    const { plugin } = useCardContext();
+    const navigation = NavigationNative.useNavigation();
+
+    return <View style={{ flexDirection: "row", gap: 6 }}>
+        <IconButton
+            size="sm"
+            variant="secondary"
+            icon={findAssetId("WrenchIcon")}
+            disabled={!plugin.getPluginSettingsComponent()}
+            onPress={() => navigation.push("BUNNY_CUSTOM_PAGE", {
+                title: plugin.name,
+                render: plugin.getPluginSettingsComponent(),
+            })}
+        />
+        <IconButton
+            size="sm"
+            variant="secondary"
+            icon={findAssetId("CircleInformationIcon-primary")}
+            onPress={() => void showSheet(
+                "PluginInfoActionSheet",
+                plugin.resolveSheetComponent(),
+                { plugin, navigation }
+            )}
+        />
+    </View>;
+};
+
+export default function PluginCard({ result, item: plugin }: CardWrapper<UnifiedPluginModel>) {
+    plugin.usePluginState();
+
+    const [, forceUpdate] = React.useReducer(() => ({}), 0);
+    const cardContextValue = useMemo(() => ({ plugin, result }), [plugin, result]);
+
+    return (
+        <CardContext.Provider value={cardContextValue}>
+            <Card>
+                <Stack spacing={16}>
+                    {/* The name gets the whole width beside the switch; settings and info sit under the description */}
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+                        <View style={{ flexShrink: 1, flexGrow: 1 }}>
+                            <Title />
+                            <Authors />
+                        </View>
+                        <TableSwitch
+                            value={plugin.isEnabled()}
+                            onValueChange={(v: boolean) => {
+                                plugin.toggle(v);
+                                forceUpdate();
+                            }}
+                        />
+                    </View>
+                    <Description />
+                    <View style={{ flexDirection: "row", justifyContent: "flex-end" }}>
+                        <Actions />
+                    </View>
+                </Stack>
+            </Card>
+        </CardContext.Provider>
+    );
+}

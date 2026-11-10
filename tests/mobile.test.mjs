@@ -18,51 +18,17 @@ const plugin = Object.freeze({
   source_code: "throw Error('Do not execute this');"
 });
 
-test("the shipped payload adds one native settings section and keeps the existing list intact", async () => {
+test("the shipped runtime waits for Metro and initializes its bootstrap once", async () => {
   const bundle = await readFile(new URL("../dist/moggcord-mobile.js", import.meta.url), "utf8");
-  const context = vm.createContext({ console, fetch() { throw new Error("Unexpected startup network request"); } });
+  const context = vm.createContext({ console, fetch() { throw new Error("Unexpected startup request"); } });
   vm.runInContext(bundle, context);
+  const descriptor = Object.getOwnPropertyDescriptor(context, "__r");
   vm.runInContext(bundle, context);
   const { version } = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
   assert.equal(context.__MOGGCORD_MOBILE__, version);
-
-  const factories = new Map();
-  context.__d = (factory, id) => factories.set(id, factory);
-  const list = Object.freeze({
-    createList(config, origin) {
-      assert.equal(origin, "settings");
-      return config.sections;
-    }
-  });
-  const renderer = Object.freeze({ SETTING_RENDERER_CONFIG: Object.freeze({ ACCOUNT: { type: "route" } }) });
-  function load(id, exported) {
-    context.__d((scope, require, importDefault, importAll, module) => { module.exports = exported; }, id, []);
-    const module = { exports: {} };
-    factories.get(id)(context, undefined, undefined, undefined, module, module.exports, []);
-    return module.exports;
-  }
-  const react = {
-    Component: class {},
-    createElement: (type, props, ...children) => ({ type, props, children }),
-    useState() {}
-  };
-  load(1, react);
-  load(2, Object.freeze({ AppRegistry: {}, View: "View", Text: "Text" }));
-  const settings = load(3, renderer);
-  const createList = load(4, list).createList;
-  const normal = Object.freeze([Object.freeze({ label: "Account", settings: Object.freeze(["ACCOUNT"]) })]);
-  const output = createList(Object.freeze({ sections: normal }), "settings");
-  assert.equal(normal.length, 1);
-  assert.equal(output.length, 2);
-  assert.equal(output[1].label, "Moggcord");
-  assert.equal(output[1].settings[0], "MOGGCORD_MOBILE");
-  assert.equal(createList({ sections: output }, "settings"), output);
-  const unrelated = [{ settings: ["PRIVACY"] }];
-  assert.equal(createList({ sections: unrelated }, "settings"), unrelated);
-  assert.equal(settings.SETTING_RENDERER_CONFIG.ACCOUNT, renderer.SETTING_RENDERER_CONFIG.ACCOUNT);
-  const route = settings.SETTING_RENDERER_CONFIG.MOGGCORD_MOBILE;
-  assert.equal(route.useTitle(), "Moggcord Mobile");
-  assert.equal(typeof route.screen.getComponent(), "function");
+  assert.equal(Object.getOwnPropertyDescriptor(context, "__r").set, descriptor.set);
+  context.__r = id => id;
+  assert.equal(context.__r(42), 42);
 });
 
 test("an unsupported or failing observer never replaces the Discord module's original behavior", () => {

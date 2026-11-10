@@ -1,4 +1,6 @@
 /* Copyright (c) 2026 Moggcord contributors. SPDX-License-Identifier: GPL-3.0-or-later */
+import bundledPluginIds from "./mobile-plugin-ids.json" with { type: "json" };
+
 export const mobilePlugins = Object.freeze([
   { id: "messagelogger", title: "Message Logger", mark: "ML", category: "Chat",
     description: "View deleted and edited text from this session in a private log." },
@@ -9,7 +11,7 @@ export const mobilePlugins = Object.freeze([
 ]);
 
 const eventTypes = new Set(["MESSAGE_DELETE", "MESSAGE_DELETE_BULK", "MESSAGE_UPDATE"]);
-const ids = new Set(mobilePlugins.map(plugin => plugin.id));
+const ids = new Set([...mobilePlugins.map(plugin => plugin.id), ...bundledPluginIds]);
 const maxLog = 80;
 const isId = value => typeof value === "string" && /^\d{1,22}$/.test(value);
 const owns = (value, key) => Object.prototype.hasOwnProperty.call(value, key);

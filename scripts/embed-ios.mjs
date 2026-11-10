@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 const bundle = await readFile(new URL("../dist/moggcord-mobile.js", import.meta.url));
-if (!bundle.length || bundle.length > 1024 * 1024) throw new Error("Unexpected mobile bundle size");
+if (!bundle.length || bundle.length > 8 * 1024 * 1024) throw new Error("Unexpected mobile bundle size");
 const output = new URL("../dist/ios/generated/", import.meta.url);
 await mkdir(output, { recursive: true });
 const lines = [];

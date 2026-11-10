@@ -34,7 +34,7 @@ public final class MoggcordLoader implements IXposedHookZygoteInit, IXposedHookL
     private static final String BUNDLE = "moggcord-mobile.js";
     private static final String REACT_INSTANCE = "com.facebook.react.runtime.ReactInstance";
     private static final String FILE_LOADER = "loadScriptFromFile";
-    private static final int MAX_BUNDLE_BYTES = 1024 * 1024;
+    private static final int MAX_BUNDLE_BYTES = 8 * 1024 * 1024;
     private final Set<Object> initialized = Collections.newSetFromMap(new WeakHashMap<>());
     private String modulePath;
     private boolean hooked;

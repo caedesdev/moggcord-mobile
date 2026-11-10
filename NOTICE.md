@@ -8,3 +8,15 @@ Moggcord Mobile code is licensed under GPL-3.0-or-later. See [LICENSE](LICENSE).
 - The Moggcord mark and community links are from [Moggcord](https://moggcord.cc).
 
 Discord is a product of Discord Inc. This project is independent of Discord Inc., Apple and Google.
+
+## Bundled mobile framework and plugins
+
+The runtime is adapted from Endcord Mobile revision
+0891b7c079bac1543bc23bf0a661da56422453fc. The framework retains its original
+BSD-3-Clause license in [runtime/LICENSE](runtime/LICENSE), with notices for
+Team Vendetta, pylixonly and Team Revenge. Marked plugin files retain the
+copyright of rootpoi and contributors and their GPL-3.0-or-later notices.
+Message Logger also credits PalmDevs' GPL-3.0 message-logger approach.
+
+Moggcord changes include branding, settings integration, bundled plugin
+management, the compact voice control, update behavior and storage integration.

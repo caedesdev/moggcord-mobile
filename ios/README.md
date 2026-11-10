@@ -16,7 +16,7 @@ The result is `dist/ios/MoggcordMobile.dylib`. Successful [GitHub Actions runs](
 
 ## Build and install a test IPA
 
-1. Download and unzip the [iOS build kit](https://github.com/caedesdev/moggcord-mobile/releases/tag/ios-v0.2.0).
+1. Download and unzip the [iOS build kit](https://github.com/caedesdev/moggcord-mobile/releases/tag/ios-v0.3.0).
 2. In that folder, run the following command with Python 3.12 and an unencrypted ARM64 Discord 344.1 IPA (build 110861) you are allowed to modify.
 
 ```sh

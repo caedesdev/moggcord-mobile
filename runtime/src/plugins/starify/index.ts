@@ -1,0 +1,27 @@
+/*
+ * Endcord for Android
+ * Copyright (c) 2026 rootpoi and contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+import { tx } from "@core/i18n";
+
+import { definePlugin } from "../api";
+import { command } from "../hooks";
+import { message } from "../shared/text";
+
+export default definePlugin({
+    id: "moggcord.starify",
+    name: "Starify",
+    description: tx("Adds /starify to wrap your message in sparkles ｡ﾟ☆."),
+    icon: "StarIcon",
+    tags: ["Chat", "Fun"],
+    start({ cleanup }) {
+        cleanup(command({
+            name: "starify",
+            description: tx("Decorate your message with sparkles"),
+            options: [message()],
+            run: ({ message }) => `✦ﾟ｡⋆ ${message} ⋆｡ﾟ✦`,
+        }));
+    },
+});

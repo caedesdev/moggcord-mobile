@@ -60,6 +60,7 @@ jobs:
           mkdir -p dist/artifact-android
           cp "$apk" dist/artifact-android/Moggcord-Mobile-Loader-debug.apk
           cp LICENSE NOTICE.md android/README.md dist/artifact-android/
+          cp runtime/LICENSE dist/artifact-android/LICENSE-MOBILE-RUNTIME
       - uses: actions/upload-artifact@v7.0.2
         with:
           name: Moggcord-Mobile-Android-dev
@@ -88,6 +89,7 @@ jobs:
           node --input-type=module -e 'import fs from "node:fs"; if (!fs.readFileSync("dist/ios/MoggcordMobile.dylib").includes(fs.readFileSync("dist/moggcord-mobile.js"))) process.exit(1)'
           mkdir -p dist/artifact-ios
           cp dist/ios/MoggcordMobile.dylib LICENSE NOTICE.md ios/README.md ios/vendor/LICENSE-META dist/artifact-ios/
+          cp runtime/LICENSE dist/artifact-ios/LICENSE-MOBILE-RUNTIME
       - uses: actions/upload-artifact@v7.0.2
         with:
           name: Moggcord-Mobile-iOS-dev

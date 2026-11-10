@@ -1,0 +1,11 @@
+{
+  "repository": "https://github.com/Endcord/endcord-mobile",
+  "revision": "0891b7c079bac1543bc23bf0a661da56422453fc",
+  "archiveSha256": "cf0ff36ea3b8041834543c386acaca838dcd1b00ead8021c906329e65896d21e",
+  "license": "BSD-3-Clause for framework, GPL-3.0-or-later for marked plugins",
+  "changes": [
+    "Moggcord branding and settings",
+    "Moggcord-only updates and storage",
+    "Voice controls and inline message logging"
+  ]
+}

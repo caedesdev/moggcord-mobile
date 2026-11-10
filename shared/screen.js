@@ -1,5 +1,4 @@
 import logo from "./assets/moggcord.png";
-import { catalogSources, loadPluginCatalog } from "./catalog.js";
 import { libraryUrl, loadLibrary, origin } from "./community.js";
 import { normalizePreferences, palettes, readBackup, toggleSaved } from "./preferences.js";
 
@@ -96,16 +95,15 @@ function stylesFor(color) {
 
 export function createMobileScreen(React, RN, store, runtime) {
   const h = React.createElement;
-  const { View, Text, Image, Pressable, ScrollView, TextInput, ActivityIndicator, Switch, Linking } = RN;
+  const { View, Text, Image, Pressable, ScrollView, TextInput, ActivityIndicator, Switch, Linking, Modal } = RN;
 
   function Screen() {
     const [tab, setTab] = React.useState("Home");
-    const [scope, setScope] = React.useState("mobile");
-    const [source, setSource] = React.useState("moggcord");
+    const [pluginSettings, setPluginSettings] = React.useState(null);
+    const [pluginLimit, setPluginLimit] = React.useState(30);
     const [search, setSearch] = React.useState("");
     const [section, setSection] = React.useState("plugin");
     const [communitySearch, setCommunitySearch] = React.useState("");
-    const [offset, setOffset] = React.useState(0);
     const [retry, setRetry] = React.useState(0);
     const [preferences, setPreferences] = React.useState(normalizePreferences);
     const [ready, setReady] = React.useState(false);
@@ -113,20 +111,15 @@ export function createMobileScreen(React, RN, store, runtime) {
     const [notice, setNotice] = React.useState("");
     const [backup, setBackup] = React.useState("");
     const [backupOpen, setBackupOpen] = React.useState(false);
-    const [showLog, setShowLog] = React.useState(false);
     const [time, setTime] = React.useState(Date.now);
     const preferencesRef = React.useRef(preferences);
     const writeId = React.useRef(0);
     const color = palettes[preferences.palette];
     const s = React.useMemo(() => stylesFor(color), [color]);
-    const desktop = tab === "Plugins" && scope === "desktop";
     const community = tab === "Community" && section !== "saved";
-    const requestKey = desktop ? JSON.stringify(["desktop", source, search])
-      : community ? JSON.stringify(["community", section, communitySearch]) : "";
-    const results = useResults(React, requestKey, desktop ? offset : 0, retry, async signal => {
-      if (desktop) return loadPluginCatalog(source, search, offset, { signal });
-      return { entries: await loadLibrary(section, communitySearch, { signal }), total: 0, next: 0 };
-    });
+    const requestKey = community ? JSON.stringify(["community", section, communitySearch]) : "";
+    const results = useResults(React, requestKey, 0, retry, async signal =>
+      ({ entries: await loadLibrary(section, communitySearch, { signal }), total: 0, next: 0 }));
 
     React.useEffect(() => {
       let mounted = true;
@@ -135,8 +128,11 @@ export function createMobileScreen(React, RN, store, runtime) {
       refresh();
       store.load().then(value => {
         if (!mounted) return;
-        preferencesRef.current = value;
-        setPreferences(value);
+        const next = normalizePreferences({
+          ...value, enabledPlugins: runtime.currentEnabled?.() ?? value.enabledPlugins
+        });
+        preferencesRef.current = next;
+        setPreferences(next);
       }).catch(() => {
         if (mounted) setNotice("Could not load saved preferences.");
       }).finally(() => {
@@ -152,15 +148,16 @@ export function createMobileScreen(React, RN, store, runtime) {
       return () => clearInterval(timer);
     }, [state.callStarted, tab]);
 
-    async function apply(input, message = "") {
+    async function apply(input, message = "", updatePlugins = false) {
       if (!ready) return;
       const current = ++writeId.current;
       const next = normalizePreferences(input);
+      if (!updatePlugins) next.enabledPlugins = runtime.currentEnabled?.() ?? next.enabledPlugins;
       preferencesRef.current = next;
       setPreferences(next);
-      runtime.setEnabled(next.enabledPlugins);
       setNotice("");
       try {
+        if (updatePlugins) await runtime.setEnabled(next.enabledPlugins);
         await store.save(next);
         if (current === writeId.current) setNotice(store.persistent ? message : "Changes apply for this session.");
       } catch {
@@ -170,7 +167,6 @@ export function createMobileScreen(React, RN, store, runtime) {
 
     function go(next) {
       setNotice("");
-      setOffset(0);
       setTab(next);
     }
 
@@ -225,15 +221,14 @@ export function createMobileScreen(React, RN, store, runtime) {
 
     function changePlugin(plugin, enable) {
       const current = preferencesRef.current;
-      const enabledPlugins = enable
-        ? [...current.enabledPlugins, plugin.id]
-        : current.enabledPlugins.filter(id => id !== plugin.id);
-      void apply({ ...current, enabledPlugins });
+      const live = runtime.currentEnabled?.() ?? current.enabledPlugins;
+      const enabledPlugins = enable ? [...live, plugin.id] : live.filter(id => id !== plugin.id);
+      void apply({ ...current, enabledPlugins }, "", true);
     }
 
     function mobilePlugin(plugin, index) {
       const unavailable = !plugin.available && !plugin.enabled;
-      const label = plugin.failed ? "Could not start" : plugin.active ? "Enabled" : plugin.available ? "Mobile" : "Waiting for Discord";
+      const label = plugin.failed ? "Could not start" : plugin.active ? "Enabled" : plugin.available ? "Disabled" : "Waiting for Discord";
       return h(View, { key: plugin.id, style: [s.padded, index > 0 && s.divider] },
         h(View, { style: s.row },
           tile(plugin.mark),
@@ -242,7 +237,7 @@ export function createMobileScreen(React, RN, store, runtime) {
             h(Text, { style: s.caption }, plugin.category + (plugin.experimental ? " · Experimental" : ""))),
           h(Switch, {
             value: plugin.enabled, onValueChange: value => changePlugin(plugin, value),
-            disabled: !ready || unavailable, accessibilityLabel: plugin.title, testID: "plugin-" + plugin.id,
+            disabled: !ready || unavailable || plugin.busy, accessibilityLabel: plugin.title, testID: "plugin-" + plugin.id,
             trackColor: { true: color.accent, false: color.border }, ios_backgroundColor: color.border
           })),
         h(Text, { style: [s.text, { marginTop: 8 }] }, plugin.description),
@@ -251,50 +246,22 @@ export function createMobileScreen(React, RN, store, runtime) {
           plugin.active && plugin.id === "calltimer" && h(Text, { style: [s.caption, { marginLeft: 8 }] },
             state.callStarted == null ? "No active call" : duration(state.callStarted, time)),
           plugin.active && plugin.id === "fakedeafen" && h(Text, { style: [s.caption, { marginLeft: 8 }] }, state.fakeStatus)),
-        plugin.active && plugin.id === "messagelogger" && h(View, { style: { marginTop: 10 } },
-          button(showLog ? "Hide log" : "Open log · " + state.log.length, () => setShowLog(value => !value))));
+        plugin.hasSettings && h(View, { style: { marginTop: 10 } },
+          button("Settings", () => {
+            try { setPluginSettings(() => runtime.settingsComponent(plugin.id)); }
+            catch { setNotice("Could not open this plugin's settings."); }
+          })));
     }
 
     function pluginView() {
       const term = search.trim().toLowerCase();
-      const plugins = state.plugins.filter(plugin => (plugin.title + " " + plugin.description).toLowerCase().includes(term));
-      const logOpen = showLog && plugins.some(plugin => plugin.id === "messagelogger" && plugin.active);
+      const plugins = state.plugins.filter(plugin => (plugin.title + " " + plugin.description + " " + plugin.category).toLowerCase().includes(term));
       return h(React.Fragment, null,
-        heading("Plugins", "Manage mobile features and explore the desktop catalog."),
-        h(View, { style: s.filters },
-          button("Mobile · " + state.plugins.length, () => { setOffset(0); setScope("mobile"); }, { filter: true, selected: !desktop }),
-          button("Desktop catalog", () => { setOffset(0); setScope("desktop"); }, { filter: true, selected: desktop })),
-        searchBox(search, value => { setOffset(0); setSearch(value); }, "Search plugins", "plugin-search"),
-        desktop ? h(React.Fragment, null,
-          h(View, { style: s.filters }, catalogSources.map(([id, label]) =>
-            button(label, () => { setOffset(0); setSource(id); }, { key: id, selected: source === id, filter: true }))),
-          status(results.loading && !results.entries.length ? "Loading desktop plugins…" : results.total + " desktop plugins"),
-          results.entries.length > 0 && h(View, { style: s.panel }, results.entries.map((entry, index) =>
-            h(View, { key: entry.id, style: [s.padded, index > 0 && s.divider] },
-              h(View, { style: s.between },
-                h(Text, { style: [s.label, s.grow] }, entry.title), badge("Desktop")),
-              h(Text, { style: [s.caption, { marginTop: 4 }] }, catalogSources.find(([id]) => id === entry.source)?.[1] ?? entry.source),
-              entry.description ? h(Text, { style: [s.text, { marginTop: 5 }] }, entry.description) : null))),
-          results.error ? h(View, { style: [s.panel, s.padded] }, status(results.error),
-            button("Try again", () => setRetry(value => value + 1))) : null,
-          results.loading ? h(ActivityIndicator, { color: color.accent, accessibilityLabel: "Loading desktop plugins" }) : null,
-          !results.loading && !results.error && !results.entries.length ? status("No desktop plugins found.") : null,
-          !results.loading && !results.error && results.next > 0 && results.next < results.total
-            ? button("Load more", () => setOffset(results.next)) : null)
-          : plugins.length ? h(View, { style: s.panel }, plugins.map(mobilePlugin)) : status("No mobile plugins found."),
-        !desktop && logOpen && h(View, { style: s.panel, testID: "message-log" },
-          h(View, { style: [s.between, s.padded] },
-            h(View, { style: s.grow },
-              h(Text, { style: s.label }, "Session log"),
-              h(Text, { style: s.caption }, "Stored in memory on this device.")),
-            button("Clear", runtime.clearLog, { disabled: !state.log.length })),
-          state.log.length ? state.log.map(entry => h(View, { key: entry.key, style: [s.padded, s.divider] },
-            h(View, { style: s.between }, badge(entry.kind), h(Text, { style: s.caption }, new Date(entry.time).toLocaleTimeString())),
-            h(Text, { style: [s.label, { marginTop: 7 }] }, entry.author),
-            h(Text, { style: s.text, selectable: true }, entry.before),
-            entry.after !== null ? h(Text, { style: [s.text, s.selectedTabText], selectable: true }, "Now: " + entry.after) : null))
-            : h(View, { style: [s.padded, s.divider] }, status("Edited and deleted messages appear here.")))
-      );
+        heading("Plugins", "Find a plugin and make it yours."),
+        searchBox(search, value => { setPluginLimit(30); setSearch(value); }, "Search plugins", "plugin-search"),
+        plugins.length ? h(View, { style: s.panel }, plugins.slice(0, pluginLimit).map(mobilePlugin))
+          : status("No plugins found."),
+        pluginLimit < plugins.length ? button("Show more", () => setPluginLimit(value => value + 30)) : null);
     }
 
     function communityView() {
@@ -348,7 +315,7 @@ export function createMobileScreen(React, RN, store, runtime) {
           h(View, { style: s.filters },
             button("Show backup", () => setBackup(JSON.stringify(preferencesRef.current, null, 2)), { filter: true, disabled: !ready }),
             button("Restore", () => {
-              try { void apply(readBackup(backup), "Mobile settings restored."); }
+              try { void apply(readBackup(backup), "Mobile settings restored.", true); }
               catch { setNotice("Choose valid Moggcord Mobile backup JSON."); }
             }, { primary: true, filter: true, disabled: !ready || !backup.trim() }))) : null));
     }
@@ -361,10 +328,10 @@ export function createMobileScreen(React, RN, store, runtime) {
           h(View, { style: s.between },
             h(Text, { style: s.eyebrow }, "PLUGIN LIBRARY"), badge(count + " enabled")),
           h(Text, { style: [s.heading, { fontSize: 22, marginTop: 7 }] }, "Make Discord yours"),
-          h(Text, { style: [s.text, { marginTop: 4 }] }, state.plugins.length + " mobile plugins and the full desktop catalog."),
-          h(View, { style: { marginTop: 12 } }, button("Browse plugins", () => { setScope("mobile"); go("Plugins"); }, { primary: true }))),
+          h(Text, { style: [s.text, { marginTop: 4 }] }, "Your plugins, ready to switch on."),
+          h(View, { style: { marginTop: 12 } }, button("Browse plugins", () => go("Plugins"), { primary: true }))),
         state.callStarted == null ? null : h(View, { style: s.panel },
-          actionRow("CT", "Call Timer", "Current call · " + duration(state.callStarted, time), () => { setScope("mobile"); go("Plugins"); })),
+          actionRow("CT", "Call Timer", "Current call · " + duration(state.callStarted, time), () => go("Plugins"))),
         h(Text, { style: [s.eyebrow, { marginBottom: 8 }] }, "QUICK LINKS"),
         h(View, { style: s.panel },
           actionRow("CO", "Community", preferences.saved.length + " saved uploads", () => go("Community")),
@@ -386,7 +353,13 @@ export function createMobileScreen(React, RN, store, runtime) {
         style: ({ pressed }) => [s.tab, name === tab && s.selectedTab, pressed && s.pressed]
       }, h(Text, { numberOfLines: 1, style: [s.tabText, name === tab && s.selectedTabText] }, name)))),
       notice ? h(View, { style: [s.panel, s.padded] }, h(Text, { style: s.text, accessibilityLiveRegion: "polite" }, notice)) : null,
-      content);
+      content,
+      pluginSettings && Modal ? h(Modal, {
+        visible: true, animationType: "slide", presentationStyle: "pageSheet", onRequestClose: () => setPluginSettings(null)
+      }, h(View, { style: s.page },
+        h(View, { style: [s.between, s.padded] }, h(Text, { style: s.label }, "Plugin settings"),
+          button("Done", () => setPluginSettings(null))),
+        h(pluginSettings))) : null);
   }
 
   class ScreenBoundary extends React.Component {
