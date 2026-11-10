@@ -13,8 +13,8 @@ import { instead } from "@lib/api/patcher";
 import { showToast } from "@lib/ui/toasts";
 import { findByName } from "@metro";
 import { tokens } from "@metro/common";
-import { Button } from "@metro/common/components";
-import { processColor } from "react-native";
+import { Button, Text } from "@metro/common/components";
+import { processColor, View } from "react-native";
 
 import { definePlugin } from "../api";
 import { currentUserId, dispatchSoon, getStore, onAction } from "../common";
@@ -146,16 +146,19 @@ const plugin = definePlugin({
             },
         );
     },
-    SettingsComponent: () => <Button
-        text={t("Clear logged messages")}
-        variant="secondary"
-        size="md"
-        icon={findAssetId("TrashIcon")}
-        onPress={() => {
-            clearLogs();
-            showToast(t("Logged messages cleared"), findAssetId("CheckmarkLargeIcon"));
-        }}
-    />,
+    SettingsComponent: () => <View style={{ gap: 16 }}>
+        <Text variant="text-sm/medium" color="text-muted">{t("Discord must be running to log messages. Your phone may pause it in the background; after force-closing, notifications do not keep Message Logger running.")}</Text>
+        <Button
+            text={t("Clear logged messages")}
+            variant="secondary"
+            size="md"
+            icon={findAssetId("TrashIcon")}
+            onPress={() => {
+                clearLogs();
+                showToast(t("Logged messages cleared"), findAssetId("CheckmarkLargeIcon"));
+            }}
+        />
+    </View>,
 });
 
 const getMessage = (channelId: string, id: string): MessageRecord | undefined => getStore("MessageStore")?.getMessage?.(channelId, id);

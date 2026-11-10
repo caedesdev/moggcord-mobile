@@ -5,9 +5,9 @@ import { build } from "esbuild";
 import vm from "node:vm";
 import { replaceVideoControl } from "../shared/voice-controls.js";
 
-async function port(name, modules) {
+async function nativeModule(entryPoint, modules) {
   const output = await build({
-    entryPoints: ["runtime/src/plugins/" + name + "/index.tsx"],
+    entryPoints: [entryPoint],
     bundle: true, write: false, platform: "node", format: "cjs", logLevel: "silent",
     plugins: [{
       name: "mock-native-host",
@@ -26,8 +26,10 @@ async function port(name, modules) {
     setTimeout(callback) { callback(); }
   });
   vm.runInContext(output.outputFiles[0].text, context);
-  return context.module.exports.default;
+  return context.module.exports;
 }
+
+const port = async (name, modules) => (await nativeModule("runtime/src/plugins/" + name + "/index.tsx", modules)).default;
 
 test("every bundled plugin ID resolves to its own implementation", async () => {
   const manifest = await readFile("runtime/src/plugins/manifest.ts", "utf8");
@@ -146,4 +148,70 @@ test("the camera slot uses the fake control without changing other call buttons"
   assert.equal(next[1], mic);
   assert.equal(next[2], hangup);
   assert.equal(camera.render(), "camera");
+});
+
+test("the real fake control follows native muted styles and keeps its slash inside its icon", async () => {
+  const patches = new Map();
+  const buttonProps = Object.freeze({ width: 48, height: 48 });
+  const wrapperSpecs = { value: { drawerMode: false } };
+  const camera = () => {};
+  const tree = { type: "AnimatedButtonWrapper", props: { props: buttonProps, onPress: camera, style: { backgroundColor: "white" } } };
+  const styles = {
+    iconBg: { backgroundColor: "transparent" },
+    iconBgVoiceMuted: { backgroundColor: "native-muted-background", borderWidth: 1 },
+    iconFill: { color: "native-normal" }, iconFillRed: { color: "native-muted-red" }
+  };
+  const video = { default() {} }, drawer = { default() {} }, hooks = { useControlsButtons() {} };
+  const modules = {
+    "modules/voice_panel/native/controls/useControlsButtons.tsx": hooks,
+    "modules/voice_panel/native/controls/buttons/VoicePanelVideoButton.tsx": video,
+    "modules/voice_panel/native/controls/VoicePanelControlsDrawer.tsx": drawer,
+    "modules/voice_panel/native/controls/buttons/VoicePanelStyles.tsx": {
+      useVoicePanelButtonStyles(specs) { assert.equal(specs, wrapperSpecs); return styles; }
+    }
+  };
+  const jsx = (type, props) => ({ type, props });
+  const api = await nativeModule("runtime/src/plugins/fakeMute/controls.tsx", {
+    "react/jsx-runtime": { jsx, jsxs: jsx },
+    "react": {
+      createContext: () => ({ Consumer: "Consumer", Provider: "Provider" }),
+      isValidElement: value => !!value?.type,
+      cloneElement: (value, props) => ({ ...value, props: { ...value.props, ...props } })
+    },
+    "react-native": { View: "View", Text: "Text", Pressable: "Pressable", StyleSheet: { flatten: value => value } },
+    "@core/vendetta/storage": { useProxy: value => value },
+    "@lib/api/patcher": { after: () => () => {} },
+    "@metro": { findByProps: () => ({ Svg: "Svg", Path: "Path" }) },
+    "@lib/utils": { findInReactTree: () => null },
+    "../../../../shared/voice-controls": { replaceVideoControl },
+    "../common": {
+      moduleAt: path => modules[path],
+      afterRender(module, key, callback) { patches.set(module, callback); return () => patches.delete(module); }
+    }
+  });
+  const stop = api.installFakeDeafenControls({ store: {} }, () => {});
+  const consumer = patches.get(video)({ wrapperSpecs }, tree);
+  assert.equal(consumer.props.children(null), tree);
+  for (const on of [false, true]) {
+    let toggles = 0;
+    const element = consumer.props.children({ on, toggle: () => toggles++ });
+    const button = element.type(element.props);
+    assert.equal(button.type, tree.type);
+    assert.equal(button.props.props, buttonProps);
+    assert.equal(button.props.style.at(-1), on ? styles.iconBgVoiceMuted : styles.iconBg);
+    button.props.onPress();
+    assert.equal(toggles, 1);
+    const icon = button.props.children;
+    assert.equal(icon.props.color, on ? "native-muted-red" : "native-normal");
+    const svg = icon.type(icon.props);
+    assert.equal(svg.type, "Svg");
+    assert.equal(typeof svg.props.width, "number");
+    assert(svg.props.width > 24 && svg.props.width < buttonProps.width);
+    assert.equal(svg.props.height, svg.props.width);
+    assert.equal(svg.props.children.filter(Boolean).length, on ? 2 : 1);
+    assert(svg.props.children.filter(Boolean).every(child => child.type === "Path"));
+  }
+  stop();
+  assert.equal(patches.size, 0);
+  assert.equal(tree.props.onPress, camera);
 });

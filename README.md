@@ -2,7 +2,7 @@
   <img src="docs/assets/moggcord-logo.png" width="100" alt="Moggcord logo">
   <h1>Moggcord Mobile</h1>
   <p>A native Moggcord settings panel for Discord on Android, iPhone and iPad.</p>
-  <p><a href="https://moggcord.cc">Website</a> · <a href="https://github.com/caedesdev/moggcord">Desktop</a> · <a href="https://github.com/caedesdev/moggcord-mobile/releases/tag/ios-v0.3.0">iOS build kit</a> · <a href="https://github.com/caedesdev/moggcord-mobile/actions/workflows/mobile.yml">Development builds</a></p>
+  <p><a href="https://moggcord.cc">Website</a> · <a href="https://github.com/caedesdev/moggcord">Desktop</a> · <a href="https://github.com/caedesdev/moggcord-mobile/releases/tag/ios-v0.3.1">iOS build kit</a> · <a href="https://github.com/caedesdev/moggcord-mobile/actions/workflows/mobile.yml">Development builds</a></p>
 </div>
 
 Moggcord Mobile is a separate project with a shared React Native payload. Open Discord settings and choose **Moggcord Mobile** in the **Moggcord** section.
@@ -15,7 +15,7 @@ Moggcord Mobile is a separate project with a shared React Native payload. Open D
 
 The plugin list uses React Native implementations for Discord Mobile. Color profiles style the Moggcord panel.
 
-Message Logger keeps received deleted messages in chat, marks them red and shows edit history. Logs stay in memory. Call Timer adds a call-duration overlay. Fake Deafen uses the camera slot in the compact voice controls and keeps the camera available in the expanded controls.
+Message Logger keeps received deleted messages in chat, marks them red and shows edit history. Logs stay in memory. Logging needs Discord to be running and receiving messages; mobile operating systems can suspend it in the background. Closing the app stops logging, and a notification cannot recover content the app never received. Call Timer adds a call-duration overlay. Fake Deafen uses a larger ghost in the camera slot, with Discord's native muted colors and a bounded slash. The camera remains available in the expanded controls. Moggcord's settings entry uses its original full-color logo.
 
 ## Platforms
 

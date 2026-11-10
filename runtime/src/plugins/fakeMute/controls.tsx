@@ -1,29 +1,28 @@
 /* Copyright (c) 2026 Moggcord contributors. SPDX-License-Identifier: GPL-3.0-or-later */
 import { useProxy } from "@core/vendetta/storage";
-import { findAssetId } from "@lib/api/assets";
 import { after } from "@lib/api/patcher";
 import { findByProps } from "@metro";
 import { findInReactTree } from "@lib/utils";
-import { showToast } from "@lib/ui/toasts";
-import { cloneElement, createContext, createElement, isValidElement } from "react";
-import { Pressable, Text, View } from "react-native";
+import { cloneElement, createContext, isValidElement } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { replaceVideoControl } from "../../../../shared/voice-controls";
 import { afterRender, moduleAt } from "../common";
-import { SlashedIcon } from "../silentTyping";
 
 const Replacement = createContext<any>(null);
 let cameraPress: (() => void) | undefined;
 let svg: any;
 
-function GhostIcon(props: any) {
+function GhostIcon({ color, slashed }: { color: string; slashed: boolean; }) {
     svg ??= findByProps("Svg", "Path");
     if (!svg?.Svg || !svg?.Path) {
-        const Headphones = moduleAt("design/components/Icon/native/redesign/generated/HeadphonesIcon.tsx")?.HeadphonesIcon;
-        return Headphones ? <Headphones {...props} /> : <Text style={{ color: "#f2f3f5", fontWeight: "700" }}>FD</Text>;
+        const name = slashed ? "HeadphonesSlashIcon" : "HeadphonesIcon";
+        const Headphones = moduleAt(`design/components/Icon/native/redesign/generated/${name}.tsx`)?.[name];
+        return Headphones ? <Headphones color={color} size="lg" /> : <Text style={{ color, fontWeight: "700" }}>FD</Text>;
     }
-    return <svg.Svg width={24} height={24} viewBox="0 0 24 24">
-        <svg.Path fill="#f2f3f5" d="M12 2a8 8 0 0 0-8 8v10a1 1 0 0 0 1.7.7L8 18.4l3.3 3.3a1 1 0 0 0 1.4 0l3.3-3.3 2.3 2.3A1 1 0 0 0 20 20V10a8 8 0 0 0-8-8Z" />
-        <svg.Path fill="#252529" d="M8 9h2v3H8zm6 0h2v3h-2z" />
+    // Fixed SVG bounds keep the slash on the icon instead of stretching across the button.
+    return <svg.Svg width={28} height={28} viewBox="0 0 24 24" pointerEvents="none" accessible={false}>
+        <svg.Path fill={color} fillRule="evenodd" d="M12 1.5a9 9 0 0 0-9 9V21a.8.8 0 0 0 1.35.58L8 18.3l3.45 3.12a.8.8 0 0 0 1.1 0L16 18.3l3.65 3.28A.8.8 0 0 0 21 21V10.5a9 9 0 0 0-9-9ZM8 8.5v3h2v-3H8Zm6 0v3h2v-3h-2Z" />
+        {slashed && <svg.Path d="M3 21 21 3" fill="none" stroke={color} strokeWidth={2.2} strokeLinecap="round" />}
     </svg.Svg>;
 }
 
@@ -52,10 +51,30 @@ export function installFakeDeafenControls(plugin: any, toggle: () => void) {
     const hooks = moduleAt<any>("modules/voice_panel/native/controls/useControlsButtons.tsx");
     const video = moduleAt<any>("modules/voice_panel/native/controls/buttons/VoicePanelVideoButton.tsx");
     const drawer = moduleAt<any>("modules/voice_panel/native/controls/VoicePanelControlsDrawer.tsx");
+    const useVoiceStyles = moduleAt<any>("modules/voice_panel/native/controls/buttons/VoicePanelStyles.tsx")?.useVoicePanelButtonStyles;
     const key = typeof hooks?.useControlsButtons === "function" ? "useControlsButtons" : "default";
     if (typeof hooks?.[key] !== "function" || !video?.default) return () => {};
 
-    const undoVideo = afterRender(video, "default", (_props, tree) =>
+    function StyledButton({ tree, state, wrapperSpecs }: any) {
+        // The same hook and muted styles used by Discord's MicButton, including theme changes.
+        const styles = useVoiceStyles?.(wrapperSpecs);
+        const fill = StyleSheet.flatten(state.on ? styles?.iconFillRed : styles?.iconFill);
+        const color = fill?.color ?? (state.on ? "#F23F43" : "#f2f3f5");
+        const background = (state.on ? styles?.iconBgVoiceMuted : styles?.iconBg) ?? {
+            backgroundColor: state.on ? "#F23F431A" : "transparent",
+            borderColor: state.on ? "#F23F4326" : "transparent",
+            borderWidth: state.on ? 1 : 0
+        };
+        return cloneElement(tree, {
+            onPress: state.toggle,
+            disabled: false,
+            accessibilityLabel: state.on ? "Disable Fake Deafen" : "Enable Fake Deafen",
+            style: [tree.props.style, background],
+            children: <GhostIcon color={color} slashed={state.on} />
+        } as any);
+    }
+
+    const undoVideo = afterRender(video, "default", (props, tree) =>
         <Replacement.Consumer>{state => {
             if (!state || !isValidElement<any>(tree)) return tree;
             if (typeof tree.props.onPress === "function") cameraPress = tree.props.onPress;
@@ -63,13 +82,7 @@ export function installFakeDeafenControls(plugin: any, toggle: () => void) {
                 const button = findInReactTree(tree, node => typeof node?.props?.onPress === "function");
                 if (button) cameraPress = button.props.onPress;
             }
-            return cloneElement(tree, {
-                onPress: state.toggle,
-                disabled: false,
-                accessibilityLabel: state.on ? "Disable Fake Deafen" : "Enable Fake Deafen",
-                style: [tree.props.style, { backgroundColor: "transparent" }],
-                children: state.on ? <SlashedIcon Icon={GhostIcon} /> : <GhostIcon />
-            } as any);
+            return <StyledButton tree={tree} state={state} wrapperSpecs={props.wrapperSpecs} />;
         }}</Replacement.Consumer>);
     if (!undoVideo) return () => {};
 

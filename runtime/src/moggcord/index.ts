@@ -11,7 +11,7 @@ import { isMoggcordPluginRunning } from "@plugins/api";
 import { manifest } from "@plugins/manifest";
 import PluginSettings from "@plugins/ui/PluginSettings";
 import descriptions from "@plugins/descriptions.json";
-import icon from "@assets/icons/moggcord.png";
+import { MoggcordIcon, moggcordIconSource } from "./BrandIcon";
 
 const aliases: Record<string, string> = {
     messagelogger: "moggcord.message-logger",
@@ -103,7 +103,8 @@ export async function initMoggcordSettings() {
         name: "Moggcord",
         items: [{
             key: "MOGGCORD_MOBILE", title: () => "Moggcord Mobile",
-            icon: { uri: icon }, render: async () => ({ default: Screen })
+            icon: moggcordIconSource, rawTabsConfig: { IconComponent: MoggcordIcon },
+            render: async () => ({ default: Screen })
         }]
     });
 }

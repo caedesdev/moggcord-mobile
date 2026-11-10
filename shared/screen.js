@@ -1,4 +1,4 @@
-import logo from "./assets/moggcord.png";
+import logo from "../runtime/src/assets/icons/moggcord.png";
 import { libraryUrl, loadLibrary, origin } from "./community.js";
 import { normalizePreferences, palettes, readBackup, toggleSaved } from "./preferences.js";
 
