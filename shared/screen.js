@@ -1,5 +1,5 @@
 import logo from "../runtime/src/assets/icons/moggcord.png";
-import { libraryUrl, loadLibrary, origin } from "./community.js";
+import { bundledPluginId, libraryUrl, loadLibrary, origin } from "./community.js";
 import { normalizePreferences, palettes, readBackup, toggleSaved } from "./preferences.js";
 
 const tabs = ["Home", "Plugins", "Community", "Settings"];
@@ -275,6 +275,9 @@ export function createMobileScreen(React, RN, store, runtime) {
         results.error ? h(View, { style: [s.panel, s.padded] }, status(results.error), button("Try again", () => setRetry(value => value + 1))) : null,
         entries.map(entry => {
           const saved = preferences.saved.some(item => item.id === entry.id);
+          const bundledId = bundledPluginId(entry);
+          const plugin = bundledId && state.plugins.find(item => item.id === bundledId);
+          const canEnable = plugin && plugin.available && !plugin.enabled;
           return h(View, { key: entry.id, style: [s.panel, s.padded] },
             h(View, { style: s.between },
               h(View, { style: [s.grow, { marginRight: 8 }] },
@@ -284,7 +287,14 @@ export function createMobileScreen(React, RN, store, runtime) {
                 selected: saved, disabled: !ready, accessibilityLabel: (saved ? "Remove " : "Save ") + entry.name
               })),
             entry.description ? h(Text, { style: [s.text, { marginTop: 8 }], numberOfLines: 4 }, entry.description) : null,
-            h(View, { style: { marginTop: 10 } }, button("View upload ↗", () => void open(libraryUrl(entry.kind, entry.name)))));
+            h(View, { style: [s.filters, { marginTop: 10 }] },
+              plugin ? button(canEnable ? "Enable mobile plugin" : "View mobile plugin", () => {
+                setPluginLimit(30);
+                setSearch(plugin.title);
+                go("Plugins");
+                if (canEnable) changePlugin(plugin, true);
+              }, { primary: true, filter: true, disabled: !ready || plugin.busy }) : null,
+              button("View upload ↗", () => void open(libraryUrl(entry.kind, entry.name)), { filter: true })));
         }),
         !entries.length && !results.loading && !results.error
           ? status(section === "saved" ? "Your saved uploads will appear here." : "No uploads found.") : null);

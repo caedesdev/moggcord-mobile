@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import vm from "node:vm";
-import { loadLibrary, libraryUrl } from "../shared/community.js";
+import { bundledPluginId, loadLibrary, libraryUrl } from "../shared/community.js";
 import { createPreferenceStore, normalizePreferences, readBackup, toggleSaved } from "../shared/preferences.js";
 import { observeMetro } from "../shared/settings.js";
 import { createPluginRuntime } from "../shared/plugins.js";
@@ -77,6 +77,15 @@ test("the library reads bounded metadata on Moggcord's site without forwarding D
   assert.equal(results.length, 1);
   assert.equal(results[0].source_code, undefined);
   assert.equal(libraryUrl("plugin", results[0].name), "https://moggcord.cc/user-plugins?q=Profile%20Sets");
+});
+
+test("only the curated upload links to the bundled mobile plugin", async () => {
+  const original = { ...plugin, id: "ed25444b-b5d2-4438-8eb1-02355d07dac7" };
+  assert.equal(bundledPluginId(original), "moggcord.profile-sets");
+  assert.equal(bundledPluginId(plugin), null);
+  assert.equal(bundledPluginId({ ...original, kind: "theme" }), null);
+  const ids = JSON.parse(await readFile(new URL("../shared/mobile-plugin-ids.json", import.meta.url), "utf8"));
+  assert(ids.includes(bundledPluginId(original)));
 });
 
 test("the message logger records visible edits and deletes without changing Discord actions", () => {

@@ -1,6 +1,12 @@
 export const origin = "https://moggcord.cc";
 const idPattern = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 const usernamePattern = /^[A-Za-z0-9][A-Za-z0-9_.-]{2,31}$/;
+const profileSetsUpload = "ed25444b-b5d2-4438-8eb1-02355d07dac7";
+
+export function bundledPluginId(entry) {
+  // Resolve a known upload to local code. The display name alone is not unique.
+  return entry.kind === "plugin" && entry.id === profileSetsUpload ? "moggcord.profile-sets" : null;
+}
 
 export function libraryUrl(kind, query = "") {
   const path = kind === "theme" ? "/themes" : "/user-plugins";

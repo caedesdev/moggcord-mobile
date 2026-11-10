@@ -1,6 +1,25 @@
 # iOS and iPadOS
 
-Moggcord Mobile targets iOS 16 and later with arm64 Discord builds using the bridgeless React Native host. The build produces a **dylib** to test with a compatible Discord app.
+Moggcord Mobile targets iOS 16 and later with arm64 Discord builds using the bridgeless React Native host.
+
+## Sign and install a prepared IPA
+
+1. Save your prepared **Moggcord-Mobile.ipa** to Files on your iPhone or iPad.
+2. Open [AltStore Classic](https://faq.altstore.io/altstore-classic). Under **My Apps**, tap **+** and pick the IPA. Keep AltServer running on your computer while AltStore signs and installs the app with your Apple Account.
+3. Open the installed app and go to **Discord Settings → Moggcord Mobile**.
+
+On Windows or macOS, you can also connect your device, load the IPA into [Sideloadly](https://sideloadly.io/), and sign it with your Apple Account there.
+
+## Build a test IPA
+
+1. Download and unzip the [iOS build kit](https://github.com/caedesdev/moggcord-mobile/releases/tag/ios-v0.4.0) on your computer.
+2. With Python 3.12, run the following command in that folder. Use an unencrypted arm64 Discord 344.1 IPA (build 110861) that you are allowed to modify.
+
+```sh
+python build-ipa.py "Discord.ipa"
+```
+
+Use the resulting **Moggcord-Mobile.ipa** with the signing steps above. When building from source, run `python scripts/build-ipa.py "Discord.ipa"` after compiling the loader. Use `--loader` to select a library in a different location.
 
 ## Build the loader
 
@@ -14,20 +33,11 @@ bash scripts/build-ios.sh
 
 The result is `dist/ios/MoggcordMobile.dylib`. Successful [GitHub Actions runs](https://github.com/caedesdev/moggcord-mobile/actions/workflows/mobile.yml) attach it as **Moggcord-Mobile-iOS-dev**.
 
-## Build and install a test IPA
+## Using Moggcord Mobile
 
-1. Download and unzip the [iOS build kit](https://github.com/caedesdev/moggcord-mobile/releases/tag/ios-v0.4.0).
-2. In that folder, run the following command with Python 3.12 and an unencrypted ARM64 Discord 344.1 IPA (build 110861) you are allowed to modify.
+Report the iOS version and Discord build if the Moggcord entry is missing. Sideloaded apps can have different availability for push notifications and other entitlement-dependent features.
 
-```sh
-python build-ipa.py "Discord.ipa"
-```
-
-3. Transfer the resulting **Moggcord-Mobile.ipa** to your device. Open it in an already configured [AltStore Classic](https://faq.altstore.io/altstore-classic/your-altstore) to sign and install it. On Windows or macOS, you can also select the IPA in [Sideloadly](https://sideloadly.io/).
-
-When building from source, run `python scripts/build-ipa.py "Discord.ipa"` after compiling the loader. Use `--loader` to select a library in a different location.
-
-Launch the app and find **Moggcord → Moggcord Mobile** in Discord settings. Report the iOS version and Discord build if the entry is missing. Sideloaded apps can have different availability for push notifications and other entitlement-dependent features.
+Open **Moggcord Mobile → Plugins**, search for **ProfileSets** and enable it. You can also enable it from its **Community** entry. The built-in version runs on mobile. Desktop ZIPs are for the desktop client.
 
 Message Logger can retain messages received by the running app. iOS can suspend Discord in the background, and force-quitting stops its JavaScript runtime. Turning notifications on does not keep the plugin running or restore deleted messages that never reached it. The loader does not access notifications belonging to a separate Discord installation.
 
