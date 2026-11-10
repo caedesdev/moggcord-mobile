@@ -19,13 +19,14 @@ import { ApplicationCommandOptionType, Argument, CommandContext } from "@lib/api
 import { intercept } from "@lib/api/flux";
 import { after, instead } from "@lib/api/patcher";
 import { showToast } from "@lib/ui/toasts";
+import { getProxyFactory } from "@lib/utils/lazy";
 import { findByName, findByProps } from "@metro";
 import { clipboard, messageUtil } from "@metro/common";
 import { ActionSheet, ActionSheetRow } from "@metro/common/components";
-import type { ReactElement, ReactNode } from "react";
+import { cloneElement, isValidElement, type ReactElement, type ReactNode } from "react";
 import { Linking, NativeModules, processColor, Share } from "react-native";
 
-import { dispatchSoon, getStore, moduleAt } from "./common";
+import { afterRender, dispatchSoon, getStore, moduleAt } from "./common";
 
 // ---------------------------------------------------------------------------------------------------------------------
 // Discord's modules
@@ -472,17 +473,18 @@ export interface MessageAction {
 const messageActions = new Map<string, MessageAction>();
 let unpatchSheet: (() => void) | null = null;
 
-function findSheet(element: any): any {
-    if (!element || typeof element !== "object") return;
+/** Clone just the path to a native menu, including memo/forwardRef results and frozen React elements. */
+export function mapMenuTree(element: any, matches: (node: ReactElement<any>) => boolean,
+    transform: (node: ReactElement<any>) => ReactElement<any>, depth = 0): any {
+    if (depth > 30) return element;
     if (Array.isArray(element)) {
-        for (const child of element) {
-            const found = findSheet(child);
-            if (found) return found;
-        }
-        return;
+        const next = element.map(child => mapMenuTree(child, matches, transform, depth + 1));
+        return next.some((child, index) => child !== element[index]) ? next : element;
     }
-    if (element.type === ActionSheet) return element;
-    return findSheet(element.props?.children);
+    if (!isValidElement<any>(element)) return element;
+    if (matches(element)) return transform(element);
+    const children = mapMenuTree(element.props.children, matches, transform, depth + 1);
+    return children === element.props.children ? element : cloneElement(element, { children });
 }
 
 function hideSheet() {
@@ -503,9 +505,10 @@ function MoggcordActions({ message, channel }: { message: any; channel: any; }) 
                 onPress={() => {
                     hideSheet();
                     try {
-                        action.onPress(message, channel);
+                        Promise.resolve(action.onPress(message, channel)).catch(toastError);
                     } catch (e) {
                         console.error(`[Moggcord] ${action.key} failed`, e);
+                        toastError(e);
                     }
                 }}
             />);
@@ -522,26 +525,26 @@ export function addMessageAction(action: MessageAction) {
     if (!unpatchSheet) {
         const module = findByName("LongPressMessageActionSheet", false)
             ?? moduleAt("modules/messages/native/long_press/LongPressMessageActionSheet.tsx");
-        if (typeof module?.default !== "function") throw new Error("Discord's message sheet wasn't found");
-        unpatchSheet = instead("default", module, (args: any[], Sheet: Function) => {
-            const tree = Reflect.apply(Sheet, undefined, args) as ReactElement;
+        unpatchSheet = afterRender(module, "default", (props, tree) => {
             try {
-                const [{ message, channel }] = args;
-                const sheet = findSheet(tree);
-                if (sheet && message) {
-                    const children = [sheet.props.children].flat().filter(Boolean);
-                    children.push(<MoggcordActions key="moggcord-actions" message={message} channel={channel} />);
-                    sheet.props.children = children;
-                }
+                const { message, channel } = props;
+                if (!message) return tree;
+                const Sheet = getProxyFactory(ActionSheet)?.() ?? ActionSheet;
+                return mapMenuTree(tree, node => node.type === Sheet,
+                    sheet => cloneElement(sheet, { children: [
+                        ...[sheet.props.children].flat().filter(child => child && child.key !== "moggcord-actions"),
+                        <MoggcordActions key="moggcord-actions" message={message} channel={channel} />
+                    ] }));
             } catch (e) {
                 console.error("[Moggcord] couldn't add to the message sheet", e);
             }
             return tree;
         });
+        if (!unpatchSheet) throw new Error("Discord's message sheet wasn't found");
     }
     messageActions.set(action.key, action);
     return () => {
-        messageActions.delete(action.key);
+        if (messageActions.get(action.key) === action) messageActions.delete(action.key);
         if (!messageActions.size) {
             unpatchSheet?.();
             unpatchSheet = null;

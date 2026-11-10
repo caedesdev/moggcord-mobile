@@ -9,7 +9,8 @@ import { awaitStorage, createMMKVBackend, createStorage, useProxy, wrapSync } fr
 
 import { definePlugin } from "../api";
 import { currentUserId } from "../common";
-import { addMessageAction, displayName, getUser } from "../hooks";
+import { displayName, getUser } from "../hooks";
+import { addUserAction } from "../userActions";
 import { clock, myVoiceChannel, statesIn } from "../shared/calls";
 import LogList from "../ui/LogList";
 
@@ -46,11 +47,11 @@ export default definePlugin({
         }, STEP);
         cleanup(
             () => clearInterval(timer),
-            addMessageAction({
+            addUserAction({
                 key: "voice-stats",
                 icon: "ClockIcon",
-                label: message => t("Time in voice together: {time}", { time: clock(voiceTime.users?.[message.author?.id] ?? 0) }),
-                visible: message => !!voiceTime.users?.[message.author?.id],
+                label: user => t("Time in voice together: {time}", { time: clock(voiceTime.users?.[user?.id] ?? 0) }),
+                visible: user => !!voiceTime.users?.[user?.id],
                 onPress: () => { },
             }),
         );

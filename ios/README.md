@@ -16,7 +16,7 @@ The result is `dist/ios/MoggcordMobile.dylib`. Successful [GitHub Actions runs](
 
 ## Build and install a test IPA
 
-1. Download and unzip the [iOS build kit](https://github.com/caedesdev/moggcord-mobile/releases/tag/ios-v0.3.1).
+1. Download and unzip the [iOS build kit](https://github.com/caedesdev/moggcord-mobile/releases/tag/ios-v0.4.0).
 2. In that folder, run the following command with Python 3.12 and an unencrypted ARM64 Discord 344.1 IPA (build 110861) you are allowed to modify.
 
 ```sh
@@ -32,3 +32,9 @@ Launch the app and find **Moggcord → Moggcord Mobile** in Discord settings. Re
 Message Logger can retain messages received by the running app. iOS can suspend Discord in the background, and force-quitting stops its JavaScript runtime. Turning notifications on does not keep the plugin running or restore deleted messages that never reached it. The loader does not access notifications belonging to a separate Discord installation.
 
 The loader attaches to the host's React Native runtime initialization and evaluates the bundled JavaScript through JSI. JSI is an internal interface, so a Discord update can require a compatibility check or loader update.
+
+## Update without reinstalling
+
+Install the 0.4.0 loader once. In **Moggcord Mobile → Settings → Moggcord updates**, check for updates and choose **Update and restart**. Compatible plugin and UI updates are downloaded, verified and staged in the app's private storage. Discord reloads to apply them; native-loader and Discord app updates still need a new signed IPA.
+
+The loader pins a P-256 verification key and checks the manifest signature, payload hash, size, Discord build and loader compatibility before loading an update. An update that does not confirm startup rolls back on the next launch. See [update development](../docs/in-app-updates.md).

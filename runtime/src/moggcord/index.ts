@@ -3,7 +3,8 @@ import * as React from "react";
 import * as RN from "react-native";
 import { createMobileScreen } from "../../../shared/screen";
 import { createPreferenceStore } from "../../../shared/preferences";
-import { NativeCacheModule } from "@lib/api/native/modules";
+import { createMobileUpdater } from "../../../shared/updates";
+import { BundleUpdaterManager, NativeCacheModule } from "@lib/api/native/modules";
 import { registerSection } from "@ui/settings";
 import { disablePlugin, enablePlugin, isPluginEnabled, registeredPlugins, pluginSettings } from "@lib/addons/plugins";
 import { loadMoggcordPlugin } from "@plugins";
@@ -24,6 +25,9 @@ const pending = new Set<string>();
 const announce = () => subscribers.forEach(update => update());
 const preferences = createPreferenceStore(() => NativeCacheModule);
 let updates = Promise.resolve();
+const updater = createMobileUpdater({ version: MOGGCORD_MOBILE_VERSION, bridge: (globalThis as any).__MOGGCORD_UPDATER__,
+    reload: typeof BundleUpdaterManager?.reload === "function" ? () => BundleUpdaterManager.reload() : undefined });
+updater.subscribe(announce);
 
 const runtime = {
     snapshot: () => ({
@@ -38,7 +42,7 @@ const runtime = {
             failed: failures.has(info.id), busy: pending.has(info.id),
             hasSettings: info.hasSettings === true
         })).sort((a, b) => Number(b.enabled) - Number(a.enabled) || a.priority - b.priority || a.title.localeCompare(b.title)),
-        log: [], callStarted: null, fakeStatus: ""
+        log: [], callStarted: null, fakeStatus: "", updater: updater.snapshot()
     }),
     setEnabled(ids: string[]) {
         const selected = new Set(ids.map(id => aliases[id] ?? id));
@@ -84,7 +88,10 @@ const runtime = {
         const plugin = loadMoggcordPlugin(id);
         return () => createElement(PluginSettings, { plugin });
     },
-    clearLog() {}
+    clearLog() {},
+    checkForUpdates: () => updater.check(),
+    installUpdate: () => updater.install(),
+    restartApp: () => updater.restart()
 };
 
 export async function initMoggcordSettings() {

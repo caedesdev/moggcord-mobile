@@ -82,6 +82,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+      - name: Test signed runtime updates and startup recovery
+        run: bash scripts/test-ios-updates.sh
       - run: bash scripts/build-ios.sh
       - name: Verify the iOS library and its embedded payload
         run: |

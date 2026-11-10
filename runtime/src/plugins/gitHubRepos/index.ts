@@ -10,27 +10,28 @@ import { showToast } from "@lib/ui/toasts";
 import { safeFetch } from "@lib/utils";
 
 import { definePlugin } from "../api";
-import { addMessageAction, displayName, openUrl } from "../hooks";
+import { displayName, openUrl } from "../hooks";
+import { addUserAction } from "../userActions";
 import { accountsOf, failed, profileOf } from "../shared/people";
 import { choose } from "../ui/dialogs";
 
 export default definePlugin({
     id: "moggcord.github-repos",
     name: "GitHubRepos",
-    description: tx("See the public GitHub repositories of a message's author from the message menu"),
+    description: tx("See the public GitHub repositories of a user from profiles and message menus"),
     icon: "PaperIcon",
     tags: ["Friends"],
     start({ cleanup }) {
-        cleanup(addMessageAction({
+        cleanup(addUserAction({
             key: "github-repos",
             icon: "PaperIcon",
             label: () => t("GitHub Repositories"),
-            visible: message => !!message.author?.id && !message.author.bot,
-            onPress: async message => {
+            visible: user => !!user?.id && !user.bot,
+            onPress: async user => {
                 try {
-                    const github = accountsOf(await profileOf(message.author.id)).find(a => a.type === "github");
+                    const github = accountsOf(await profileOf(user.id)).find(a => a.type === "github");
                     if (!github) {
-                        showToast(t("{user} hasn't connected GitHub", { user: displayName(message.author) }), findAssetId("CircleInformationIcon-primary"));
+                        showToast(t("{user} hasn't connected GitHub", { user: displayName(user) }), findAssetId("CircleInformationIcon-primary"));
                         return;
                     }
                     const repos: any[] = await safeFetch(`https://api.github.com/users/${encodeURIComponent(github.name)}/repos?sort=updated&per_page=30`).then(r => r.json());

@@ -9,7 +9,8 @@ import { awaitStorage, createMMKVBackend, createStorage, useProxy, wrapSync } fr
 
 import { definePlugin } from "../api";
 import { getStore } from "../common";
-import { addMessageAction, botMessage, command, displayName } from "../hooks";
+import { botMessage, command, displayName } from "../hooks";
+import { addUserAction } from "../userActions";
 import { nameOf } from "../shared/people";
 import { prompt } from "../ui/dialogs";
 import LogList from "../ui/LogList";
@@ -37,21 +38,21 @@ export default definePlugin({
     async start({ cleanup }) {
         await awaitStorage(friendTags);
         cleanup(
-            addMessageAction({
+            addUserAction({
                 key: "friend-tags",
                 icon: "TagIcon",
                 label: () => t("Tag Friend"),
-                visible: message => !!getStore("RelationshipStore")?.isFriend?.(message.author?.id),
-                onPress: message => prompt({
-                    title: t("Tags for {user}", { user: displayName(message.author) }),
+                visible: user => !!getStore("RelationshipStore")?.isFriend?.(user?.id),
+                onPress: user => prompt({
+                    title: t("Tags for {user}", { user: displayName(user) }),
                     description: t("Separate tags with commas"),
-                    initial: (friendTags.users?.[message.author.id] ?? []).join(", "),
+                    initial: (friendTags.users?.[user.id] ?? []).join(", "),
                     allowEmpty: true,
                     onSubmit: value => {
                         const tags = [...new Set(value.split(",").map(s => s.trim().toLowerCase().replace(/^#/, "")).filter(Boolean))];
                         const users = { ...(friendTags.users ?? {}) };
-                        if (tags.length) users[message.author.id] = tags;
-                        else delete users[message.author.id];
+                        if (tags.length) users[user.id] = tags;
+                        else delete users[user.id];
                         friendTags.users = users;
                     },
                 }),

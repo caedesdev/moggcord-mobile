@@ -9,7 +9,8 @@ import { awaitStorage, createMMKVBackend, createStorage, wrapSync } from "@core/
 
 import { definePlugin } from "../api";
 import { currentUserId, getStore, subscribe } from "../common";
-import { addMessageAction, botMessage, command } from "../hooks";
+import { botMessage, command } from "../hooks";
+import { addUserAction } from "../userActions";
 
 const lastOnline = wrapSync(createStorage<{ users: Record<string, number>; }>(createMMKVBackend("MOGGCORD_LAST_ONLINE", { users: {} })));
 
@@ -37,11 +38,11 @@ export default definePlugin({
                 }
                 if (Object.keys(changes).length) lastOnline.users = { ...(lastOnline.users ?? {}), ...changes };
             }),
-            addMessageAction({
+            addUserAction({
                 key: "last-online",
                 icon: "ClockIcon",
-                label: message => lastSeenText(message.author?.id),
-                visible: message => !!message.author?.id && message.author.id !== currentUserId() && !message.author.bot,
+                label: user => lastSeenText(user?.id),
+                visible: user => !!user?.id && user.id !== currentUserId() && !user.bot,
                 onPress: () => { },
             }),
             command({

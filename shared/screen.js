@@ -291,8 +291,21 @@ export function createMobileScreen(React, RN, store, runtime) {
     }
 
     function settingsView() {
+      const update = state.updater;
+      const updating = update && ["checking", "downloading", "restarting"].includes(update.phase);
       return h(React.Fragment, null,
         heading("Settings", "Personalize Moggcord and back up your preferences."),
+        update ? h(View, { style: [s.panel, s.padded] },
+          h(View, { style: s.between }, h(Text, { style: s.label }, "Moggcord updates"), badge("v" + update.version)),
+          h(Text, { style: [s.text, { marginTop: 8 }], accessibilityLiveRegion: "polite" }, update.message),
+          update.recoveryNotice ? h(Text, { style: [s.caption, { marginTop: 8 }] }, update.recoveryNotice) : null,
+          updating ? h(ActivityIndicator, { color: color.accent, style: { marginTop: 12 } }) : null,
+          h(View, { style: [s.filters, { marginTop: 12 }] },
+            update.supported ? button("Check for updates", () => void runtime.checkForUpdates(), {
+              filter: true, disabled: updating || update.phase === "pending"
+            }) : button("Downloads ↗", () => void open(origin + "/#download"), { filter: true }),
+            update.phase === "available" ? button("Update and restart", () => void runtime.installUpdate(), { primary: true, filter: true }) : null,
+            update.phase === "pending" ? button("Restart now", () => void runtime.restartApp(), { primary: true, filter: true }) : null)) : null,
         h(Text, { style: [s.eyebrow, { marginBottom: 8 }] }, "APPEARANCE"),
         h(View, { style: s.panel }, Object.entries(palettes).map(([id, palette], index) =>
           h(Pressable, {

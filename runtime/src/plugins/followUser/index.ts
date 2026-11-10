@@ -10,13 +10,14 @@ import { showToast } from "@lib/ui/toasts";
 
 import { definePlugin } from "../api";
 import { currentUserId, getStore, subscribe } from "../common";
-import { addMessageAction, displayName } from "../hooks";
+import { displayName } from "../hooks";
+import { addUserAction } from "../userActions";
 import { join, myVoiceChannel, voiceActions } from "../shared/voice";
 
 export default definePlugin({
     id: "moggcord.follow-user",
     name: "FollowUser",
-    description: tx("Follow someone from the message menu to always join the same voice channel as them"),
+    description: tx("Follow someone from profiles and message menus to always join the same voice channel as them"),
     icon: "ArrowAngleRightUpIcon",
     tags: ["Voice", "Friends"],
     settings: {
@@ -42,20 +43,20 @@ export default definePlugin({
                     else if (store.followLeave && myVoiceChannel()) voiceActions()?.disconnect?.();
                 }
             }),
-            addMessageAction({
+            addUserAction({
                 key: "follow-user",
                 icon: "ArrowAngleRightUpIcon",
-                label: message => store.followUserId === message.author?.id ? t("Unfollow in Voice") : t("Follow in Voice"),
-                visible: message => !!message.author?.id && message.author.id !== currentUserId(),
-                onPress: message => {
-                    if (store.followUserId === message.author.id) {
+                label: user => store.followUserId === user?.id ? t("Unfollow in Voice") : t("Follow in Voice"),
+                visible: user => !!user?.id && user.id !== currentUserId(),
+                onPress: user => {
+                    if (store.followUserId === user.id) {
                         store.followUserId = "";
-                        showToast(t("Stopped following {user}", { user: displayName(message.author) }), findAssetId("ArrowAngleRightUpIcon"));
+                        showToast(t("Stopped following {user}", { user: displayName(user) }), findAssetId("ArrowAngleRightUpIcon"));
                         return;
                     }
-                    store.followUserId = message.author.id;
-                    showToast(t("Following {user} in voice channels", { user: displayName(message.author) }), findAssetId("ArrowAngleRightUpIcon"));
-                    if (store.executeOnFollow) follow(getStore("VoiceStateStore")?.getVoiceStateForUser?.(message.author.id)?.channelId);
+                    store.followUserId = user.id;
+                    showToast(t("Following {user} in voice channels", { user: displayName(user) }), findAssetId("ArrowAngleRightUpIcon"));
+                    if (store.executeOnFollow) follow(getStore("VoiceStateStore")?.getVoiceStateForUser?.(user.id)?.channelId);
                 },
             }),
         );

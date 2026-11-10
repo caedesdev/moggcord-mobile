@@ -7,23 +7,24 @@
 import { t, tx } from "@core/i18n";
 
 import { definePlugin } from "../api";
-import { addMessageAction, copy, insertText } from "../hooks";
+import { copy, insertText } from "../hooks";
+import { addUserAction } from "../userActions";
 
 export default definePlugin({
     id: "moggcord.quick-mention",
     name: "QuickMention",
-    description: tx("Mention a message's author from the message menu"),
+    description: tx("Mention a user from profiles and message menus"),
     icon: "AtIcon",
     tags: ["Chat"],
     start({ cleanup }) {
-        cleanup(addMessageAction({
+        cleanup(addUserAction({
             key: "quick-mention",
             icon: "AtIcon",
             label: () => t("Mention"),
-            visible: message => !!message.author?.id,
-            onPress: message => {
-                const mention = `<@${message.author.id}> `;
-                if (!insertText(message.channel_id, mention)) copy(mention.trim(), t("Mention copied"));
+            visible: user => !!user?.id,
+            onPress: (user, { channel }) => {
+                const mention = `<@${user.id}> `;
+                if (!channel?.id || !insertText(channel.id, mention)) copy(mention.trim(), t("Mention copied"));
             },
         }));
     },

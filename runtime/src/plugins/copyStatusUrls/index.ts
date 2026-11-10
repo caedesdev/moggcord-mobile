@@ -8,13 +8,14 @@ import { t, tx } from "@core/i18n";
 
 import { definePlugin } from "../api";
 import { getStore } from "../common";
-import { addMessageAction, copy } from "../hooks";
+import { copy } from "../hooks";
+import { addUserAction } from "../userActions";
 import { choose } from "../ui/dialogs";
 
 export default definePlugin({
     id: "moggcord.copy-status-urls",
     name: "CopyStatusUrls",
-    description: tx("Copy the links in the status of a message's author from the message menu"),
+    description: tx("Copy the links in the status of a user from profiles and message menus"),
     icon: "LinkIcon",
     tags: ["Utility"],
     start({ cleanup }) {
@@ -22,13 +23,13 @@ export default definePlugin({
             const activities: any[] = getStore("PresenceStore")?.getActivities?.(userId) ?? [];
             return activities.flatMap(a => [a.url, ...(String(a.state ?? "").match(/https?:\/\/\S+/g) ?? [])]).filter(Boolean);
         };
-        cleanup(addMessageAction({
+        cleanup(addUserAction({
             key: "copy-status-urls",
             icon: "LinkIcon",
             label: () => t("Copy Status URL"),
-            visible: message => urls(message.author?.id).length > 0,
-            onPress: message => {
-                const list = urls(message.author.id);
+            visible: user => urls(user?.id).length > 0,
+            onPress: user => {
+                const list = urls(user.id);
                 if (list.length === 1) copy(list[0]);
                 else choose(t("Copy Status URL"), list.map(u => ({ label: u, value: u })), u => copy(u));
             },

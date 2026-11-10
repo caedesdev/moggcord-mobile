@@ -10,7 +10,8 @@ import { showToast } from "@lib/ui/toasts";
 
 import { definePlugin } from "../api";
 import { currentUserId, onAction } from "../common";
-import { addMessageAction, getChannel, hideLocally, onIncomingMessage } from "../hooks";
+import { getChannel, hideLocally, onIncomingMessage } from "../hooks";
+import { addUserAction } from "../userActions";
 import { ids, isBlocked } from "../shared/filters";
 
 export default definePlugin({
@@ -42,16 +43,16 @@ export default definePlugin({
             }),
             // Their typing isn't shown either
             onAction<{ userId: string; }>("TYPING_START", ({ userId }) => hidden(userId) ? false : undefined),
-            addMessageAction({
+            addUserAction({
                 key: "client-side-block",
                 icon: "DenyIcon",
                 danger: true,
                 label: () => t("Hide this user's messages"),
-                visible: message => !!message.author?.id && message.author.id !== currentUserId() && !ids(store.usersToBlock).has(message.author.id),
-                onPress: (message, channel) => {
-                    store.usersToBlock = [...ids(store.usersToBlock), message.author.id].join(", ");
-                    hideLocally(channel?.id ?? message.channel_id, message.id);
-                    showToast(t("Messages from {user} are hidden. Reopen chats to hide older ones.", { user: message.author.username }), findAssetId("DenyIcon"));
+                visible: user => !!user?.id && user.id !== currentUserId() && !ids(store.usersToBlock).has(user.id),
+                onPress: (user, { channel, message }) => {
+                    store.usersToBlock = [...ids(store.usersToBlock), user.id].join(", ");
+                    if (message?.id) hideLocally(channel?.id ?? message.channel_id, message.id);
+                    showToast(t("Messages from {user} are hidden. Reopen chats to hide older ones.", { user: user.username }), findAssetId("DenyIcon"));
                 },
             }),
         );

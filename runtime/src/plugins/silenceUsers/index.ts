@@ -8,7 +8,8 @@ import { t, tx } from "@core/i18n";
 
 import { definePlugin } from "../api";
 import { currentUserId } from "../common";
-import { addMessageAction, getChannel, onIncomingMessage } from "../hooks";
+import { getChannel, onIncomingMessage } from "../hooks";
+import { addUserAction } from "../userActions";
 import { ids } from "../shared/filters";
 
 export default definePlugin({
@@ -34,14 +35,14 @@ export default definePlugin({
                 if (!message.mentions?.length && !message.mention_roles?.length && !message.mention_everyone) return;
                 return { ...message, mentions: [], mention_roles: [], mention_everyone: false };
             }),
-            addMessageAction({
+            addUserAction({
                 key: "silence-users",
                 icon: "BellSlashIcon",
-                label: message => ids(store.mutedUserIds).has(message.author?.id) ? t("Stop silencing this user") : t("Silence this user's pings"),
-                visible: (message, channel) => !!channel?.guild_id && message.author?.id !== currentUserId(),
-                onPress: message => {
+                label: user => ids(store.mutedUserIds).has(user?.id) ? t("Stop silencing this user") : t("Silence this user's pings"),
+                visible: (user, { guildId }) => !!guildId && user?.id !== currentUserId(),
+                onPress: user => {
                     const list = ids(store.mutedUserIds);
-                    if (!list.delete(message.author.id)) list.add(message.author.id);
+                    if (!list.delete(user.id)) list.add(user.id);
                     store.mutedUserIds = [...list].join(", ");
                 },
             }),

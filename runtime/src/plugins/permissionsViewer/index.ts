@@ -9,57 +9,45 @@ import { findByProps } from "@metro";
 
 import { definePlugin } from "../api";
 import { getStore, guildRoles } from "../common";
-import { addMessageAction, displayName, getGuild } from "../hooks";
+import { displayName, getGuild } from "../hooks";
+import { addUserAction } from "../userActions";
 import { showText } from "../ui/dialogs";
-
-/** The names of the permissions in a bitfield, from Discord's own table */
-function permissionNames(bits: unknown): string[] {
-    const table = findByProps("Permissions", "ChannelTypes")?.Permissions ?? {};
-    const names: string[] = [];
-    for (const [name, value] of Object.entries<any>(table)) {
-        try {
-            if (value && ((bits as any) & value) === value) names.push(name);
-        } catch {
-            // Mixed number and BigInt bitfields can't be compared
-        }
-    }
-    return names;
-}
+import { memberPermissions } from "./permissions";
 
 const title = (name: string) => name.toLowerCase().split("_").map(w => w[0].toUpperCase() + w.slice(1)).join(" ");
 
 export default definePlugin({
     id: "moggcord.permissions-viewer",
     name: "PermissionsViewer",
-    description: tx("See the roles and permissions of a message's author from the message menu"),
+    description: tx("View a server member's roles and permissions from their profile or a message."),
     icon: "ShieldIcon",
     tags: ["Servers", "Utility"],
     start({ cleanup }) {
-        cleanup(addMessageAction({
+        cleanup(addUserAction({
             key: "permissions-viewer",
             icon: "ShieldIcon",
             label: () => t("View Roles and Permissions"),
-            visible: (message, channel) => !!channel?.guild_id && !!message.author?.id,
-            onPress: (message, channel) => {
-                const guildId = channel.guild_id;
+            visible: (user, context) => !!context.guildId && !!user?.id,
+            onPress: (user, { guildId }) => {
+                if (!guildId) return;
                 const guild = getGuild(guildId);
-                const member = getStore("GuildMemberStore")?.getMember?.(guildId, message.author.id);
+                const member = getStore("GuildMemberStore")?.getMember?.(guildId, user.id);
                 const roles = guildRoles(guildId);
-                const memberRoles = [roles[guildId], ...(member?.roles ?? []).map((id: string) => roles[id])].filter(Boolean).sort((a: any, b: any) => b.position - a.position);
-                const owner = guild?.ownerId === message.author.id;
-                let bits: any = memberRoles[0]?.permissions;
-                for (const role of memberRoles.slice(1)) {
-                    try {
-                        bits |= role.permissions;
-                    } catch { }
+                const table = findByProps("Permissions", "ChannelTypes")?.Permissions ?? findByProps("Permissions")?.Permissions ?? {};
+                const ownerId = guild?.ownerId ?? guild?.owner_id;
+                const result = memberPermissions(guildId, user.id, ownerId, member?.roles ?? [], roles, table);
+                if ((!member && ownerId !== user.id) || !result.complete) {
+                    showText(displayName(user), t("Member or role details have not loaded yet. Open this member's server profile and try again."));
+                    return;
                 }
-                const permissions = permissionNames(bits);
-                const isAdmin = owner || permissions.includes("ADMINISTRATOR");
-                showText(displayName(message.author), [
-                    owner ? `👑 ${t("Server owner")}` : "",
-                    `${t("Roles")}: ${memberRoles.map((r: any) => r.name).join(", ") || "—"}`,
+                showText(`${displayName(user)}${guild?.name ? ` · ${guild.name}` : ""}`, [
+                    result.owner ? t("Server owner") : "",
+                    `${t("Roles")}: ${result.roles.map(r => r.name).join(", ") || "—"}`,
                     "",
-                    isAdmin ? t("Administrator: every permission") : `${t("Permissions")}:\n${permissions.map(p => `• ${title(p)}`).join("\n") || "—"}`,
+                    result.administrator ? t("Administrator: every server permission")
+                        : `${t("Server permissions")}:\n${result.permissions.map(p => `• ${title(p)}`).join("\n") || "—"}`,
+                    "",
+                    t("Channel overrides and role hierarchy may limit individual actions."),
                 ].filter((line, i) => line || i === 2).join("\n"));
             },
         }));

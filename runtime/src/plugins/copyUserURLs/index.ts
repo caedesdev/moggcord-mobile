@@ -7,21 +7,22 @@
 import { t, tx } from "@core/i18n";
 
 import { definePlugin } from "../api";
-import { addMessageAction, copy } from "../hooks";
+import { copy } from "../hooks";
+import { addUserAction } from "../userActions";
 
 export default definePlugin({
     id: "moggcord.copy-user-urls",
     name: "CopyUserURLs",
-    description: tx("Copy a link to the profile of a message's author from the message menu"),
+    description: tx("Copy a link to the profile of a user from profiles and message menus"),
     icon: "LinkIcon",
     tags: ["Utility"],
     start({ cleanup }) {
-        cleanup(addMessageAction({
+        cleanup(addUserAction({
             key: "copy-user-url",
             icon: "LinkIcon",
             label: () => t("Copy User URL"),
-            visible: message => !!message.author?.id,
-            onPress: message => copy(`https://discord.com/users/${message.author.id}`),
+            visible: user => !!user?.id,
+            onPress: user => copy(`https://discord.com/users/${user.id}`),
         }));
     },
 });

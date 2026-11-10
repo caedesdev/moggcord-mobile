@@ -26,4 +26,9 @@ export default async () => {
     await initMoggcordSettings();
     await initPlugins();
     markReady();
+    // A candidate becomes permanent only after initialization and a short successful app startup.
+    setTimeout(() => {
+        try { (globalThis as any).__MOGGCORD_UPDATER__?.confirm(MOGGCORD_MOBILE_VERSION); }
+        catch (error) { console.warn("[Moggcord] Update startup confirmation failed", error); }
+    }, 5000);
 };

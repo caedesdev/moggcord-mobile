@@ -10,7 +10,8 @@ import { showToast } from "@lib/ui/toasts";
 
 import { definePlugin } from "../api";
 import { currentUserId, subscribe } from "../common";
-import { addMessageAction, api, describeError, getChannel } from "../hooks";
+import { api, describeError, getChannel } from "../hooks";
+import { addUserAction } from "../userActions";
 import { myVoiceChannel, permission } from "../shared/calls";
 
 async function moveMember(guildId: string, userId: string, channelId: string | null) {
@@ -20,7 +21,7 @@ async function moveMember(guildId: string, userId: string, channelId: string | n
 export default definePlugin({
     id: "moggcord.pull-user-into-voice",
     name: "PullUserIntoVoice",
-    description: tx("Pull a message's author into your voice channel from the message menu, and keep pulling them if you like"),
+    description: tx("Pull a user into your voice channel from profiles and message menus, and keep pulling them if you like"),
     icon: "VoiceNormalIcon",
     tags: ["Voice", "Servers"],
     settings: {
@@ -40,22 +41,23 @@ export default definePlugin({
                 const mine = myVoiceChannel();
                 if (state && mine && state.channelId !== mine && getChannel(mine)?.guild_id === target.guildId) setTimeout(() => pull(target!.guildId, target!.userId), 500);
             }),
-            addMessageAction({
+            addUserAction({
                 key: "pull-user-into-voice",
                 icon: "VoiceNormalIcon",
-                label: message => target?.userId === message.author?.id ? t("Stop Pulling Into My Voice Channel") : t("Pull Into My Voice Channel"),
-                visible: (message, channel) => {
+                label: user => target?.userId === user?.id ? t("Stop Pulling Into My Voice Channel") : t("Pull Into My Voice Channel"),
+                visible: (user, { guildId }) => {
                     const mine = myVoiceChannel();
-                    return !!mine && !!channel?.guild_id && getChannel(mine)?.guild_id === channel.guild_id
-                        && message.author?.id !== currentUserId() && permission("MOVE_MEMBERS", getChannel(mine));
+                    return !!mine && !!guildId && getChannel(mine)?.guild_id === guildId
+                        && user?.id !== currentUserId() && permission("MOVE_MEMBERS", getChannel(mine));
                 },
-                onPress: (message, channel) => {
-                    if (target?.userId === message.author.id) {
+                onPress: (user, { guildId }) => {
+                    if (!guildId) return;
+                    if (target?.userId === user.id) {
                         target = undefined;
                         return;
                     }
-                    target = { guildId: channel.guild_id, userId: message.author.id };
-                    pull(channel.guild_id, message.author.id);
+                    target = { guildId, userId: user.id };
+                    pull(guildId, user.id);
                 },
             }),
         );

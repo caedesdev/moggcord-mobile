@@ -9,7 +9,8 @@ import { findByProps } from "@metro";
 
 import { definePlugin } from "../api";
 import { currentUserId, getStore } from "../common";
-import { addMessageAction, onMessageRow } from "../hooks";
+import { onMessageRow } from "../hooks";
+import { addUserAction } from "../userActions";
 import { channelName } from "../shared/channels";
 
 const voiceChannelOf = (userId?: string): string | undefined => userId ? getStore("VoiceStateStore")?.getVoiceStateForUser?.(userId)?.channelId ?? undefined : undefined;
@@ -17,7 +18,7 @@ const voiceChannelOf = (userId?: string): string | undefined => userId ? getStor
 export default definePlugin({
     id: "moggcord.user-voice-show",
     name: "UserVoiceShow",
-    description: tx("Shows an indicator on messages from people in a voice channel, and lets you join them from the message menu"),
+    description: tx("Shows an indicator on messages from people in a voice channel, and lets you join them from profiles and message menus"),
     icon: "VoiceNormalIcon",
     tags: ["Voice", "Chat"],
     start({ cleanup }) {
@@ -25,15 +26,15 @@ export default definePlugin({
             onMessageRow("user-voice-show", (row, message) => {
                 if (voiceChannelOf(message.author?.id) && typeof row.timestamp === "string" && !row.timestamp.startsWith("🔊")) row.timestamp = `🔊 ${row.timestamp}`;
             }),
-            addMessageAction({
+            addUserAction({
                 key: "user-voice-show",
                 icon: "VoiceNormalIcon",
-                label: message => t("Join Them in {channel}", { channel: channelName(voiceChannelOf(message.author?.id)!) }),
-                visible: message => {
-                    const channelId = voiceChannelOf(message.author?.id);
-                    return !!channelId && message.author.id !== currentUserId() && channelId !== getStore("SelectedChannelStore")?.getVoiceChannelId?.();
+                label: user => t("Join Them in {channel}", { channel: channelName(voiceChannelOf(user?.id)!) }),
+                visible: user => {
+                    const channelId = voiceChannelOf(user?.id);
+                    return !!channelId && user.id !== currentUserId() && channelId !== getStore("SelectedChannelStore")?.getVoiceChannelId?.();
                 },
-                onPress: message => findByProps("selectVoiceChannel")?.selectVoiceChannel?.(voiceChannelOf(message.author.id)),
+                onPress: user => findByProps("selectVoiceChannel")?.selectVoiceChannel?.(voiceChannelOf(user.id)),
             }),
         );
     },

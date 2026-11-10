@@ -8,7 +8,8 @@ import { t, tx } from "@core/i18n";
 
 import { definePlugin } from "../api";
 import { getStore } from "../common";
-import { addMessageAction, displayName } from "../hooks";
+import { displayName } from "../hooks";
+import { addUserAction } from "../userActions";
 import { showText } from "../ui/dialogs";
 
 const ACTIVITY_VERBS = [tx("Playing"), tx("Streaming"), tx("Listening to"), tx("Watching"), "", tx("Competing in")];
@@ -16,17 +17,17 @@ const ACTIVITY_VERBS = [tx("Playing"), tx("Streaming"), tx("Listening to"), tx("
 export default definePlugin({
     id: "moggcord.better-activities",
     name: "BetterActivities",
-    description: tx("See everything a message's author is doing right now, from the message menu"),
+    description: tx("See everything a user is doing right now, from profiles and message menus"),
     icon: "GameControllerIcon",
     tags: ["Friends"],
     start({ cleanup }) {
         const activities = (id?: string): any[] => (id && getStore("PresenceStore")?.getActivities?.(id)) || [];
-        cleanup(addMessageAction({
+        cleanup(addUserAction({
             key: "better-activities",
             icon: "GameControllerIcon",
             label: () => t("Activities"),
-            visible: message => activities(message.author?.id).length > 0,
-            onPress: message => showText(t("Activities of {user}", { user: displayName(message.author) }), activities(message.author.id).map(a => {
+            visible: user => activities(user?.id).length > 0,
+            onPress: user => showText(t("Activities of {user}", { user: displayName(user) }), activities(user.id).map(a => {
                 if (a.type === 4) return `💬 ${[a.emoji?.name, a.state].filter(Boolean).join(" ")}`;
                 const verb = ACTIVITY_VERBS[a.type] ? `${t(ACTIVITY_VERBS[a.type])} ` : "";
                 const started = a.timestamps?.start ? ` · ${t("for {time}", { time: Math.round((Date.now() - a.timestamps.start) / 60000) + "m" })}` : "";

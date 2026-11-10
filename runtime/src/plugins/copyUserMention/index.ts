@@ -7,21 +7,22 @@
 import { t, tx } from "@core/i18n";
 
 import { definePlugin } from "../api";
-import { addMessageAction, copy } from "../hooks";
+import { copy } from "../hooks";
+import { addUserAction } from "../userActions";
 
 export default definePlugin({
     id: "moggcord.copy-user-mention",
     name: "CopyUserMention",
-    description: tx("Copy the mention of a message's author from the message menu"),
+    description: tx("Copy the mention of a user from profiles and message menus"),
     icon: "AtIcon",
     tags: ["Utility"],
     start({ cleanup }) {
-        cleanup(addMessageAction({
+        cleanup(addUserAction({
             key: "copy-user-mention",
             icon: "AtIcon",
             label: () => t("Copy User Mention"),
-            visible: message => !!message.author?.id,
-            onPress: message => copy(`<@${message.author.id}>`),
+            visible: user => !!user?.id,
+            onPress: user => copy(`<@${user.id}>`),
         }));
     },
 });
