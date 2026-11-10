@@ -203,13 +203,19 @@ test("the desktop catalog pages public metadata and strips installable payloads"
         ok: true,
         json: async () => ({ offset: 30, total: 380, data: [
           { id: "messagelogger", name: "MessageLogger", source: "moggcord", description: "Logs edits", source_code: "throw Error()" },
-          { id: "../invalid", name: "Invalid" }
+          { id: "../invalid", name: "Invalid" },
+          { id: "webrichpresence (arrpc)", name: "WebRichPresence (arRPC)", source: "vencord" },
+          { id: "translate+", name: "Translate+", source: "equicord" }
         ] })
       };
     }
   });
   assert.deepEqual(result, {
-    total: 380, next: 32,
-    entries: [{ id: "messagelogger", title: "MessageLogger", source: "moggcord", description: "Logs edits" }]
+    total: 380, next: 34,
+    entries: [
+      { id: "messagelogger", title: "MessageLogger", source: "moggcord", description: "Logs edits" },
+      { id: "webrichpresence (arrpc)", title: "WebRichPresence (arRPC)", source: "vencord", description: "" },
+      { id: "translate+", title: "Translate+", source: "equicord", description: "" }
+    ]
   });
 });

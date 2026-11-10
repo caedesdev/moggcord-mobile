@@ -24,7 +24,7 @@ export async function loadPluginCatalog(source, query, offset = 0, { signal, req
   const entries = [];
   const seen = new Set();
   for (const item of payload.data) {
-    if (typeof item?.id !== "string" || !/^[a-z0-9][a-z0-9._-]{0,99}$/.test(item.id)
+    if (typeof item?.id !== "string" || !item.id.trim() || item.id.length > 120 || /[\u0000-\u001f\u007f/\\]/.test(item.id)
       || typeof item.name !== "string" || !item.name.trim() || seen.has(item.id)) continue;
     seen.add(item.id);
     entries.push({
