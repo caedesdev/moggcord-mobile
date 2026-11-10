@@ -5,6 +5,8 @@ import vm from "node:vm";
 import { loadLibrary, libraryUrl } from "../shared/community.js";
 import { createPreferenceStore, normalizePreferences, readBackup, toggleSaved } from "../shared/preferences.js";
 import { observeMetro } from "../shared/settings.js";
+import { createPluginRuntime } from "../shared/plugins.js";
+import { loadPluginCatalog } from "../shared/catalog.js";
 
 const plugin = Object.freeze({
   id: "17677319-0fd4-4c42-a3cc-b71413be0bf5",
@@ -21,7 +23,8 @@ test("the shipped payload adds one native settings section and keeps the existin
   const context = vm.createContext({ console, fetch() { throw new Error("Unexpected startup network request"); } });
   vm.runInContext(bundle, context);
   vm.runInContext(bundle, context);
-  assert.equal(context.__MOGGCORD_MOBILE__, "0.1.0");
+  const { version } = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
+  assert.equal(context.__MOGGCORD_MOBILE__, version);
 
   const factories = new Map();
   context.__d = (factory, id) => factories.set(id, factory);
@@ -108,4 +111,105 @@ test("the library reads bounded metadata on Moggcord's site without forwarding D
   assert.equal(results.length, 1);
   assert.equal(results[0].source_code, undefined);
   assert.equal(libraryUrl("plugin", results[0].name), "https://moggcord.cc/user-plugins?q=Profile%20Sets");
+});
+
+test("the message logger records visible edits and deletes without changing Discord actions", () => {
+  const runtime = createPluginRuntime(error => assert.fail(error), () => 1000);
+  const callbacks = [];
+  const dispatcher = { _interceptors: callbacks, dispatch() {}, subscribe() {}, unsubscribe() {} };
+  let account = "123456789012345678";
+  const author = { username: "Friend" };
+  const messages = new Map([["1", { author, content: "Before" }], ["2", { author, content: "Second" }]]);
+  runtime.setEnabled(["messagelogger", "desktop-code", "messagelogger"]);
+  assert.equal(runtime.snapshot().plugins[0].active, false);
+  runtime.observe({ exports: { default: dispatcher } });
+  runtime.observe({ exports: { default: { getMessage: (_, id) => messages.get(id), getMessages() {} } } });
+  runtime.observe({ exports: { default: { getCurrentUser: () => ({ id: account }), getUser() {} } } });
+  assert.equal(callbacks.length, 1);
+  assert.equal(runtime.snapshot().plugins[0].active, true);
+
+  const update = Object.freeze({ type: "MESSAGE_UPDATE", message: Object.freeze({ id: "1", channel_id: "3", content: "After" }) });
+  assert.equal(callbacks[0](update), false);
+  assert.equal(callbacks[0]({ type: "MESSAGE_DELETE_BULK", ids: ["2", "4"], channelId: "3" }), false);
+  assert.equal(callbacks[0]({ type: "MESSAGE_UPDATE", id: "1", channelId: "3" }), false);
+  assert.deepEqual(runtime.snapshot().log.map(({ kind, before, after }) => [kind, before, after]), [
+    ["Deleted", "Second", null], ["Edited", "Before", "After"]
+  ]);
+  assert.equal(update.message.content, "After");
+  assert.equal(messages.get("1").content, "Before");
+  account = "987654321098765432";
+  assert.deepEqual(runtime.snapshot().log, []);
+  runtime.setEnabled([]);
+  assert.equal(callbacks.length, 0);
+});
+
+test("voice plugins track calls and restore genuine flags when disabled", () => {
+  let time = 100;
+  let channel;
+  const subscribers = new Map();
+  const states = [];
+  class Gateway {
+    voiceStateUpdate(state) { states.push(state); return "sent"; }
+  }
+  const original = Gateway.prototype.voiceStateUpdate;
+  const runtime = createPluginRuntime(error => assert.fail(error), () => time);
+  runtime.observe({ exports: {
+    _interceptors: [],
+    dispatch() {},
+    subscribe(name, cb) { subscribers.set(name, cb); },
+    unsubscribe(name, cb) { if (subscribers.get(name) === cb) subscribers.delete(name); }
+  } });
+  runtime.observe({ exports: { default: { getVoiceChannelId: () => channel } } });
+  runtime.observe({ exports: { default: Gateway } });
+  runtime.setEnabled(["calltimer", "fakedeafen"]);
+  assert.equal(runtime.snapshot().callStarted, null);
+  channel = "123";
+  subscribers.get("VOICE_CHANNEL_SELECT")({ channelId: channel });
+  time = 200;
+  subscribers.get("VOICE_CHANNEL_SELECT")({ channelId: channel });
+  assert.equal(runtime.snapshot().callStarted, 100);
+
+  const socket = new Gateway();
+  const unmuted = Object.freeze({ channelId: channel, selfMute: false, selfDeaf: false, selfVideo: true });
+  const muted = Object.freeze({ ...unmuted, selfMute: true });
+  assert.equal(socket.voiceStateUpdate(unmuted), "sent");
+  assert.equal(states[0], unmuted);
+  assert.equal(socket.voiceStateUpdate(muted), "sent");
+  assert.deepEqual(states[1], { ...muted, selfDeaf: true });
+  assert.equal(muted.selfDeaf, false);
+  runtime.setEnabled([]);
+  assert.equal(Gateway.prototype.voiceStateUpdate, original);
+  assert.deepEqual(states[2], muted);
+  assert.equal(runtime.snapshot().callStarted, null);
+  assert.equal(subscribers.size, 0);
+});
+
+test("mobile backups accept only implemented plugin switches and read older backups", () => {
+  const older = { schema: 1, palette: "cobalt", saved: [] };
+  assert.deepEqual(readBackup(JSON.stringify(older)).enabledPlugins, []);
+  const restored = readBackup(JSON.stringify({
+    ...older, enabledPlugins: ["messagelogger", "desktop-code", "fakedeafen", "messagelogger"]
+  }));
+  assert.deepEqual(restored.enabledPlugins, ["messagelogger", "fakedeafen"]);
+  assert.equal(restored.palette, "cobalt");
+});
+
+test("the desktop catalog pages public metadata and strips installable payloads", async () => {
+  const result = await loadPluginCatalog("moggcord", "Message logger", 30, {
+    request: async (url, options) => {
+      assert.match(url, /^https:\/\/moggcord\.cc\/api\/plugins\?source=moggcord&limit=30&offset=30&q=Message%20logger$/);
+      assert.equal(options.credentials, "omit");
+      return {
+        ok: true,
+        json: async () => ({ offset: 30, total: 380, data: [
+          { id: "messagelogger", name: "MessageLogger", source: "moggcord", description: "Logs edits", source_code: "throw Error()" },
+          { id: "../invalid", name: "Invalid" }
+        ] })
+      };
+    }
+  });
+  assert.deepEqual(result, {
+    total: 380, next: 32,
+    entries: [{ id: "messagelogger", title: "MessageLogger", source: "moggcord", description: "Logs edits" }]
+  });
 });

@@ -1,4 +1,5 @@
 import { normalizeEntry } from "./community.js";
+import { normalizePluginIds } from "./plugins.js";
 
 export const palettes = Object.freeze({
   midnight: { name: "Midnight", background: "#0c0e17", panel: "#141827", accent: "#afb6ff", border: "#303853", muted: "#a0aac9", text: "#f5f6ff" },
@@ -21,7 +22,7 @@ export function normalizePreferences(input) {
       saved.push(entry);
     }
   }
-  return { schema: 1, palette, saved };
+  return { schema: 1, palette, saved, enabledPlugins: normalizePluginIds(input?.enabledPlugins) };
 }
 
 export function readBackup(text) {
@@ -30,6 +31,18 @@ export function readBackup(text) {
   if (input?.schema !== 1 || typeof input.palette !== "string" || !Array.isArray(input.saved)
     || !Object.prototype.hasOwnProperty.call(palettes, input.palette)) throw new Error("Choose a Moggcord Mobile backup");
   return normalizePreferences(input);
+}
+
+export function findNativeStorage(RN) {
+  for (const name of ["NativeCacheModule", "MMKVManager"]) {
+    try {
+      const storage = RN?.TurboModuleRegistry?.get?.(name) ?? RN?.NativeModules?.[name];
+      if (typeof storage?.getItem === "function" && typeof storage.setItem === "function") return storage;
+    } catch {
+      // Optional Discord storage modules vary between builds.
+    }
+  }
+  return null;
 }
 
 export function createPreferenceStore(findStorage) {

@@ -7,12 +7,16 @@
 
 Moggcord Mobile is a separate project with a shared React Native payload. Open Discord settings and choose **Moggcord Mobile** in the **Moggcord** section.
 
+- **Mobile plugins.** Switch on Message Logger, Call Timer and experimental Fake Deafen from the Plugins tab. Available switches depend on the Discord build.
+- **Desktop catalog.** Search Moggcord, Vencord and Equicord by name and description in the app.
 - **Community library.** Search Moggcord's public plugins and themes and save favorites on your device.
 - **Color profiles.** Switch between Midnight, Cobalt and Dusk for the Moggcord panel.
-- **Backup & Restore.** Export your color profile and favorites as JSON or restore a backup.
+- **Backup & Restore.** Export your color profile, favorites and plugin switches as JSON in Settings.
 - **Quick actions.** Open the community, website and service status from your phone.
 
-The catalog shows public metadata and links to the website. Desktop plugins and CSS themes need a mobile port before they can run inside the React Native Discord app. Color profiles style the Moggcord panel.
+Desktop plugin entries show metadata. Each desktop plugin needs a React Native port to run in Discord Mobile. Color profiles style the Moggcord panel.
+
+Message Logger keeps up to 80 local text changes in memory for the current Discord account and session. Open its log from Plugins. Call Timer shows the current duration in Home and Plugins. Fake Deafen applies on the next voice-state update while the microphone is muted. It keeps Discord's actual microphone and audio controls in use.
 
 ## Platforms
 

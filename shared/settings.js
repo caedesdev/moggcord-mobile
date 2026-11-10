@@ -2,7 +2,7 @@ const settingKey = "MOGGCORD_MOBILE";
 const title = "Moggcord Mobile";
 const owns = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
 
-export function createSettingsAdapter(createPage, report) {
+export function createSettingsAdapter(createPage, report, onNative = () => {}) {
   let react;
   let native;
   let page;
@@ -48,7 +48,10 @@ export function createSettingsAdapter(createPage, report) {
     const exported = module?.exports;
     if (!exported || typeof exported !== "object" || decorated.has(exported)) return;
     if (!react && typeof exported.createElement === "function" && typeof exported.useState === "function") react = exported;
-    if (!native && owns(exported, "AppRegistry") && owns(exported, "View") && owns(exported, "Text")) native = exported;
+    if (!native && owns(exported, "AppRegistry") && owns(exported, "View") && owns(exported, "Text")) {
+      native = exported;
+      onNative(native);
+    }
     if (!owns(exported, "SETTING_RENDERER_CONFIG") && !owns(exported, "createList")) return;
     const descriptors = Object.getOwnPropertyDescriptors(exported);
     if (descriptors.SETTING_RENDERER_CONFIG) {
