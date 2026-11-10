@@ -2,7 +2,7 @@ import { formatString, Strings, t } from "@core/i18n";
 import AddonPage from "@core/ui/components/AddonPage";
 import ThemeCard from "@core/ui/settings/pages/Themes/ThemeCard";
 import { useProxy } from "@core/vendetta/storage";
-import { getCurrentTheme, installTheme, themes, VdThemeInfo } from "@lib/addons/themes";
+import { canApplyThemes, getCurrentTheme, installTheme, themes, VdThemeInfo } from "@lib/addons/themes";
 import { colorsPref } from "@lib/addons/themes/colors/preferences";
 import { updateBunnyColor } from "@lib/addons/themes/colors/updater";
 import { Author } from "@lib/addons/types";
@@ -56,7 +56,8 @@ export default function Themes() {
                             hasIcons={true}
                             onChange={type => {
                                 colorsPref.type = type !== "auto" ? type as "dark" | "light" : undefined;
-                                getCurrentTheme()?.data && updateBunnyColor(getCurrentTheme()!.data!, { update: true });
+                                const current = getCurrentTheme();
+                                if (canApplyThemes() && current?.data) updateBunnyColor(current.data, { update: true });
                             }}
                         >
                             <TableRadioRow icon={<TableRowIcon source={findAssetId("RobotIcon")} />} label={t("Automatic")} value="auto" />

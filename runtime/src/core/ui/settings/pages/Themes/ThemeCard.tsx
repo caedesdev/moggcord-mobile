@@ -2,9 +2,8 @@ import { formatString, Strings, t } from "@core/i18n";
 import AddonCard, { CardWrapper } from "@core/ui/components/AddonCard";
 import { showConfirmationAlert } from "@core/vendetta/alerts";
 import { useProxy } from "@core/vendetta/storage";
-import { fetchTheme, removeTheme, selectTheme, themes, VdThemeInfo } from "@lib/addons/themes";
+import { canApplyThemes, fetchTheme, removeTheme, selectTheme, themes, VdThemeInfo } from "@lib/addons/themes";
 import { findAssetId } from "@lib/api/assets";
-import { settings } from "@lib/api/settings";
 import { clipboard } from "@metro/common";
 import { showToast } from "@ui/toasts";
 
@@ -31,7 +30,7 @@ export default function ThemeCard({ item: theme }: CardWrapper<VdThemeInfo>) {
             headerLabel={theme.data.name}
             headerSublabel={authors?.length ? t("by {authors}", { authors: authors.map(i => i.name).join(", ") }) : ""}
             descriptionLabel={theme.data.description}
-            toggleType={!settings.safeMode?.enabled ? "radio" : undefined}
+            toggleType={canApplyThemes() ? "radio" : undefined}
             toggleValue={() => themes[theme.id].selected}
             onToggleChange={(v: boolean) => {
                 selectAndApply(v, theme);

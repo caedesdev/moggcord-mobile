@@ -1,4 +1,4 @@
-import { getCurrentTheme, writeThemeToNative } from "@lib/addons/themes";
+import { canApplyThemes, getCurrentTheme, writeThemeToNative } from "@lib/addons/themes";
 import { BundleUpdaterManager } from "@lib/api/native/modules";
 import { settings } from "@lib/api/settings";
 
@@ -14,6 +14,6 @@ export async function toggleSafeMode({
     // The loaders read the theme as it's stored ({ id, selected, data }): its data alone reads as no theme, which left
     // the theme off after safe mode until it was chosen again
     const currentColor = getCurrentTheme();
-    await writeThemeToNative(enabled ? {} : currentColor ?? {});
+    await writeThemeToNative(enabled || !canApplyThemes() ? {} : currentColor ?? {});
     if (reload) setTimeout(() => BundleUpdaterManager.reload(), 500);
 }

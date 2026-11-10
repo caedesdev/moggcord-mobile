@@ -3,6 +3,7 @@ import { initOverlayHost } from "@core/overlay";
 import { markReady, step } from "@core/timings";
 import { initVendettaObject } from "@core/vendetta/api";
 import { initPlugins, updatePlugins } from "@lib/addons/plugins";
+import { initThemes } from "@lib/addons/themes";
 import { patchCommands } from "@lib/api/commands";
 import { injectFluxInterceptor } from "@lib/api/flux";
 import { patchJsx } from "@lib/api/react/jsx";
@@ -14,6 +15,8 @@ export default async () => {
     const overlay = initOverlayHost();
     if (overlay) lib.unload.push(overlay);
     window.bunny = lib;
+    const unloadThemes = await step("themes", initThemes);
+    if (unloadThemes) lib.unload.push(unloadThemes);
     await Promise.all([
         step("flux", injectFluxInterceptor),
         step("settings", patchSettings),

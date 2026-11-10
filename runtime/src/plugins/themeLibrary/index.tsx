@@ -8,7 +8,7 @@
 
 import { t, tx } from "@core/i18n";
 import { useProxy } from "@core/vendetta/storage";
-import { downloadTheme, installTheme, selectTheme, ThemeDownloadError, themes } from "@lib/addons/themes";
+import { canApplyThemes, downloadTheme, installTheme, selectTheme, ThemeDownloadError, themes, themeUnavailableMessage } from "@lib/addons/themes";
 import { findAssetId } from "@lib/api/assets";
 import { BundleUpdaterManager } from "@lib/api/native/modules";
 import { openAlert } from "@lib/ui/alerts";
@@ -95,9 +95,11 @@ const ThemeCard = memo(function ThemeCard({ theme, width }: { theme: LibraryThem
     const installed = useProxy(themes);
     const [busy, setBusy] = useState(false);
     const entry = installed[theme.installUrl];
-    const applied = !!entry?.selected;
+    const canApply = canApplyThemes();
+    const applied = canApply && !!entry?.selected;
 
     const apply = async () => {
+        if (!canApplyThemes()) return;
         setBusy(true);
         try {
             if (!entry) await installTheme(theme.installUrl);
@@ -130,14 +132,14 @@ const ThemeCard = memo(function ThemeCard({ theme, width }: { theme: LibraryThem
             </View>
             {!!theme.description && <Text variant="text-md/medium">{t(theme.description)}</Text>}
         </Stack>
-        <Button
+        {canApply && <Button
             text={applied ? t("Applied") : entry ? t("Apply") : t("Install")}
             variant={applied ? "secondary" : "primary"}
             size="md"
             disabled={applied}
             loading={busy}
             onPress={apply}
-        />
+        />}
     </Card>;
 });
 
@@ -234,7 +236,9 @@ function Library() {
 
     return <Stack spacing={12}>
         <Text variant="text-sm/medium" color="text-muted">
-            {t("Themes from the community's theme marketplace and Catppuccin. Installed themes also appear in Moggcord's Themes page.")}
+            {canApplyThemes()
+                ? t("Themes from the community's theme marketplace and Catppuccin. Installed themes also appear in Moggcord's Themes page.")
+                : themeUnavailableMessage()}
         </Text>
         <Search placeholder={t("Search for a theme...")} onChangeText={setQuery} />
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: GAP }} onLayout={e => setWidth(e.nativeEvent.layout.width)}>

@@ -6,7 +6,7 @@
 
 import { t, tx } from "@core/i18n";
 import { awaitStorage } from "@core/vendetta/storage";
-import { getCurrentTheme, selectTheme, themes } from "@lib/addons/themes";
+import { canApplyThemes, getCurrentTheme, selectTheme, themes, themeUnavailableMessage } from "@lib/addons/themes";
 import { findAssetId } from "@lib/api/assets";
 import { showToast } from "@lib/ui/toasts";
 
@@ -16,14 +16,19 @@ import { BUTTON_OPTIONS, chatButton, failed } from "../shared/navigation";
 import { choose } from "../ui/dialogs";
 
 function pickTheme() {
+    if (!canApplyThemes()) {
+        showToast(themeUnavailableMessage(), findAssetId("CircleXIcon-primary"));
+        return;
+    }
     const installed = Object.values(themes);
     const current = getCurrentTheme()?.id;
     choose(t("Theme"), [
         { label: `${current ? "" : "✓ "}${t("Default")}`, value: "" },
         ...installed.map(theme => ({ label: `${theme.id === current ? "✓ " : ""}${theme.data?.name ?? theme.id}`, value: theme.id })),
     ], id => {
-        Promise.resolve(selectTheme(id ? themes[id] : null)).catch(failed);
-        showToast(t("Theme changed; some colors change after a restart"), findAssetId("PaintPaletteIcon"));
+        Promise.resolve().then(() => selectTheme(id ? themes[id] : null)).then(() => {
+            showToast(t("Theme changed; some colors change after a restart"), findAssetId("PaintPaletteIcon"));
+        }).catch(failed);
     });
 }
 

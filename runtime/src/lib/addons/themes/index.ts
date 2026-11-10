@@ -2,6 +2,7 @@ import { t } from "@core/i18n";
 import { awaitStorage, createFileBackend, createMMKVBackend, createStorage, wrapSync } from "@core/vendetta/storage";
 import { writeFile } from "@lib/api/native/fs";
 import { getStoredTheme, getThemeFilePath, isPyonLoader, isThemeSupported } from "@lib/api/native/loader";
+import { settings } from "@lib/api/settings";
 import { awaitStorage as newAwaitStorage } from "@lib/api/storage";
 import { isAddonUrl } from "@lib/utils/addonUrl";
 import { Platform } from "react-native";
@@ -19,6 +20,13 @@ export interface VdThemeInfo {
 }
 
 export const themes = wrapSync(createStorage<Record<string, VdThemeInfo>>(createMMKVBackend("VENDETTA_THEMES")));
+let colorPatchesReady = false;
+
+export function canApplyThemes() {
+    return colorPatchesReady && !settings.safeMode?.enabled;
+}
+
+export const themeUnavailableMessage = () => t("Custom themes are unavailable with this loader or in Safe Mode.");
 
 /**
  * @internal
@@ -126,16 +134,13 @@ export async function downloadTheme(url: string): Promise<VendettaThemeManifest>
 export async function fetchTheme(url: string, selected = false) {
     const themeJSON = await downloadTheme(url);
 
-    themes[url] = {
+    const theme = {
         id: url,
-        selected: selected,
+        selected: false,
         data: processData(themeJSON),
     };
-
-    if (selected) {
-        writeThemeToNative(themes[url]);
-        updateBunnyColor(themes[url].data, { update: true });
-    }
+    if (selected && canApplyThemes()) await selectTheme(theme);
+    themes[url] = theme;
 }
 
 export async function installTheme(url: string) {
@@ -144,16 +149,16 @@ export async function installTheme(url: string) {
 }
 
 export function selectTheme(theme: VdThemeInfo | null, write = true) {
+    if (theme && !canApplyThemes()) throw new Error(themeUnavailableMessage());
+    if (canApplyThemes() && (theme || write)) updateBunnyColor(theme?.data ?? null, { update: true });
     if (theme) theme.selected = true;
     Object.keys(themes).forEach(
         k => themes[k].selected = themes[k].id === theme?.id
     );
 
     if (theme == null && write) {
-        updateBunnyColor(null, { update: true });
         return writeThemeToNative({});
     } else if (theme) {
-        updateBunnyColor(theme.data, { update: true });
         return writeThemeToNative(theme);
     }
 }
@@ -194,12 +199,17 @@ export async function initThemes() {
             writeFile("../vendetta_theme.json", "null");
         }
 
-        await newAwaitStorage(colorsPref);
+        await Promise.all([newAwaitStorage(colorsPref), awaitStorage(settings)]);
 
-        const currentTheme = getThemeFromLoader();
-        initColors(currentTheme?.data ?? null);
+        const currentTheme = settings.safeMode?.enabled ? null : getThemeFromLoader();
+        const unpatch = initColors(currentTheme?.data ?? null);
+        colorPatchesReady = true;
 
         updateThemes().catch(e => console.error("Failed to update themes", e));
+        return () => {
+            colorPatchesReady = false;
+            unpatch();
+        };
     } catch (e) {
         console.error("Failed to initialize themes", e);
     }
