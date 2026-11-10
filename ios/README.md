@@ -14,9 +14,18 @@ bash scripts/build-ios.sh
 
 The result is `dist/ios/MoggcordMobile.dylib`. Successful [GitHub Actions runs](https://github.com/caedesdev/moggcord-mobile/actions/workflows/mobile.yml) attach it as **Moggcord-Mobile-iOS-dev**.
 
-## Try it on a device
+## Build and install a test IPA
 
-Use a compatible Discord IPA you are allowed to modify and an IPA installation tool that supports injecting dylibs. Add `MoggcordMobile.dylib`, then sign the resulting app for your device with your own Apple credentials. Consult the tool's instructions for provisioning and installation. A development dylib is not an installable IPA.
+1. Download and unzip the [iOS build kit](https://github.com/caedesdev/moggcord-mobile/releases/tag/ios-v0.1.0).
+2. In that folder, run the following command with Python 3.12 and an unencrypted ARM64 Discord 344.1 IPA (build 110861) you are allowed to modify.
+
+```sh
+python build-ipa.py "Discord.ipa"
+```
+
+3. Transfer the resulting **Moggcord-Mobile.ipa** to your device. Open it in an already configured [AltStore Classic](https://faq.altstore.io/altstore-classic/your-altstore) to sign and install it. On Windows or macOS, you can also select the IPA in [Sideloadly](https://sideloadly.io/).
+
+When building from source, run `python scripts/build-ipa.py "Discord.ipa"` after compiling the loader. Use `--loader` to select a library in a different location.
 
 Launch the app and find **Moggcord → Moggcord Mobile** in Discord settings. Report the iOS version and Discord build if the entry is missing. Sideloaded apps can have different availability for push notifications and other entitlement-dependent features.
 
