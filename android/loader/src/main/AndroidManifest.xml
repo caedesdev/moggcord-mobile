@@ -1,6 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <application android:label="Moggcord Mobile Loader" android:allowBackup="false">
+    <queries>
+        <package android:name="com.discord" />
+        <package android:name="cc.moggcord.mobile.discord" />
+        <package android:name="cc.moggcord.mobile.loader" />
+        <package android:name="org.lsposed.manager" />
+    </queries>
+    <application
+        android:allowBackup="false"
+        android:icon="@drawable/moggcord_icon"
+        android:label="@string/app_name"
+        android:theme="@style/MoggcordLauncherTheme">
+        <activity android:name=".LauncherActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
         <meta-data android:name="xposedmodule" android:value="true" />
         <meta-data android:name="xposeddescription" android:value="Loads the bundled Moggcord Mobile interface in Discord." />
         <meta-data android:name="xposedminversion" android:value="82" />

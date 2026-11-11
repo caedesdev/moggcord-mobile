@@ -26,7 +26,7 @@ jobs:
       - run: npm test
 
   android:
-    name: Android loader
+    name: Android launcher
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     needs: shared
@@ -47,18 +47,24 @@ jobs:
           gradle-version: "8.13"
       - run: npm ci
       - run: npm run build
-      - name: Assemble development module
+      - name: Assemble launcher APKs
         run: |
           test -f "$ANDROID_HOME/platforms/android-36/android.jar"
-          gradle -p android :loader:assembleDebug
+          gradle -p android :loader:assembleDebug :loader:assembleRelease
       - name: Verify APK and its embedded payload
         run: |
           apk=android/loader/build/outputs/apk/debug/loader-debug.apk
+          release=android/loader/build/outputs/apk/release/loader-release-unsigned.apk
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify "$apk"
-          unzip -p "$apk" assets/moggcord-mobile.js | cmp - dist/moggcord-mobile.js
-          test "$(unzip -p "$apk" assets/xposed_init)" = cc.moggcord.mobile.loader.MoggcordLoader
+          for package in "$apk" "$release"; do
+            unzip -p "$package" assets/moggcord-mobile.js | cmp - dist/moggcord-mobile.js
+            test "$(unzip -p "$package" assets/xposed_init)" = cc.moggcord.mobile.loader.MoggcordLoader
+            "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$package" | grep -F "launchable-activity: name='cc.moggcord.mobile.loader.LauncherActivity'"
+          done
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$release" | grep -F "package: name='cc.moggcord.mobile.launcher'"
           mkdir -p dist/artifact-android
-          cp "$apk" dist/artifact-android/Moggcord-Mobile-Loader-debug.apk
+          cp "$apk" dist/artifact-android/Moggcord-Android-Launcher-debug.apk
+          cp "$release" dist/artifact-android/Moggcord-Android-Launcher-unsigned.apk
           cp LICENSE NOTICE.md android/README.md dist/artifact-android/
           cp runtime/LICENSE dist/artifact-android/LICENSE-MOBILE-RUNTIME
       - uses: actions/upload-artifact@v7.0.2

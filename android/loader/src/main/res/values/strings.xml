@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Moggcord for Android</string>
+    <string name="launcher_description">Set up Moggcord for your Discord app.</string>
+    <string name="discord">Discord</string>
+    <string name="discord_found">Installed</string>
+    <string name="discord_version">Installed · %1$s</string>
+    <string name="discord_missing">Install Discord to get started.</string>
+    <string name="open_discord">Open Discord</string>
+    <string name="get_discord">Get Discord</string>
+    <string name="setup_title">Moggcord setup</string>
+    <string name="setup_description">The module is included in this app. Enable it for Discord in your existing LSPosed setup.</string>
+    <string name="setup_action">Set up Moggcord</string>
+    <string name="setup_steps">1. Open LSPosed and go to Modules.\n\n2. Enable Moggcord for Android and select Discord.\n\n3. Fully close Discord, then open it and look for Moggcord Mobile in Settings.</string>
+    <string name="previous_loader">Previous Moggcord loader found</string>
+    <string name="previous_loader_description">You can keep using the previous loader. To switch, turn it off in LSPosed before enabling this one. Keep your Discord app installed.</string>
+    <string name="previous_loader_step">Turn off Moggcord Mobile Loader in LSPosed before enabling Moggcord for Android.</string>
+    <string name="manager_unavailable">Open LSPosed from its notification. Setup requires an existing LSPosed installation.</string>
+    <string name="open_manager">Open LSPosed</string>
+    <string name="done">Done</string>
+    <string name="could_not_open">Could not open %1$s.</string>
+</resources>

@@ -1,8 +1,13 @@
+import groovy.json.JsonSlurper
+
 plugins {
     id("com.android.application") version "8.13.2"
 }
 
 val sharedBundle = rootProject.layout.projectDirectory.file("../dist/moggcord-mobile.js")
+val mobilePackage = JsonSlurper().parse(rootProject.file("../package.json")) as Map<*, *>
+val mobileVersion = mobilePackage["version"] as String
+val (major, minor, patch) = mobileVersion.split(".").map(String::toInt)
 val payloadAssets = layout.buildDirectory.dir("generated/moggcord/assets")
 val prepareMoggcordPayload by tasks.registering(Copy::class) {
     from(sharedBundle)
@@ -14,11 +19,17 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "cc.moggcord.mobile.loader"
+        applicationId = "cc.moggcord.mobile.launcher"
         minSdk = 28
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = major * 1_000_000 + minor * 1_000 + patch
+        versionName = mobileVersion
+    }
+    buildTypes {
+        getByName("debug") {
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-dev"
+        }
     }
 
     sourceSets["main"].assets.srcDir(payloadAssets)
