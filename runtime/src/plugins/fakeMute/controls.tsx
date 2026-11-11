@@ -93,7 +93,7 @@ export function installFakeDeafenControls(plugin: any, toggle: () => void) {
 
     function FakeControl({ render, originalKey, props }: any) {
         const store = useProxy(plugin.store);
-        return <Replacement.Provider value={{ on: store.fakeDeafen, toggle }}>
+        return <Replacement.Provider value={{ on: !!(store.fakeMute || store.fakeDeafen), toggle }}>
             {render(originalKey, props)}
         </Replacement.Provider>;
     }
