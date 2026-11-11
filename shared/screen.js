@@ -1,4 +1,5 @@
 import logo from "../runtime/src/assets/icons/moggcord.png";
+import { uiIcons } from "./icons.js";
 import { bundledPluginId, libraryUrl, loadLibrary, origin } from "./community.js";
 import { normalizePreferences, palettes, readBackup, toggleSaved } from "./preferences.js";
 
@@ -54,35 +55,57 @@ function duration(started, now) {
 function stylesFor(color) {
   return {
     page: { flex: 1, backgroundColor: color.background },
-    content: { paddingHorizontal: 16, paddingTop: 15, paddingBottom: 36, width: "100%", maxWidth: 680, alignSelf: "center" },
+    content: { paddingHorizontal: 16, paddingTop: 22, paddingBottom: 28, width: "100%", maxWidth: 680, alignSelf: "center" },
     row: { flexDirection: "row", alignItems: "center" },
     between: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
     grow: { flex: 1, minWidth: 0 },
-    logo: { width: 40, height: 40, marginRight: 11 },
-    brand: { color: color.text, fontSize: 18, fontWeight: "700" },
+    brandRow: { flexDirection: "row", alignItems: "center", marginBottom: 27 },
+    logo: { width: 44, height: 44, marginRight: 12, resizeMode: "contain" },
+    brandSeparator: { height: 26, width: 1, backgroundColor: color.border, marginRight: 12 },
+    brand: { color: color.text, fontSize: 18, fontWeight: "700", letterSpacing: -0.4 },
     eyebrow: { color: color.accent, fontSize: 10, fontWeight: "700", letterSpacing: 1.35 },
-    tabs: { flexDirection: "row", borderRadius: 14, backgroundColor: color.panel, padding: 4, marginTop: 16, marginBottom: 21 },
-    tab: { flex: 1, minHeight: 39, justifyContent: "center", alignItems: "center", paddingHorizontal: 3, borderRadius: 10 },
-    tabText: { color: color.muted, fontSize: 12, fontWeight: "600" },
-    selectedTab: { backgroundColor: color.accent + "26" },
+    dockSafe: { backgroundColor: color.background, paddingTop: 6 },
+    dock: { flexDirection: "row", borderRadius: 22, backgroundColor: color.panel, borderWidth: 1,
+      borderColor: color.border, padding: 4, marginBottom: 8, maxWidth: 680, width: "94%", alignSelf: "center" },
+    tab: { flex: 1, minWidth: 0, minHeight: 61, justifyContent: "center", alignItems: "center", paddingHorizontal: 2, borderRadius: 16 },
+    tabText: { color: color.muted, fontSize: 11, fontWeight: "600", marginTop: 5 },
+    selectedTab: { backgroundColor: color.primary + "28" },
     selectedTabText: { color: color.accent },
-    heading: { color: color.text, fontSize: 25, fontWeight: "700", letterSpacing: -0.6 },
+    heading: { color: color.text, fontSize: 26, fontWeight: "700", letterSpacing: -0.7 },
     label: { color: color.text, fontSize: 15, fontWeight: "600" },
     text: { color: color.muted, fontSize: 13, lineHeight: 19 },
     caption: { color: color.muted, fontSize: 11, lineHeight: 16 },
     intro: { marginBottom: 15 },
-    panel: { backgroundColor: color.panel, borderRadius: 16, borderWidth: 1, borderColor: color.border, marginBottom: 12, overflow: "hidden" },
-    padded: { padding: 14 },
+    panel: { backgroundColor: color.panel, borderRadius: 18, borderWidth: 1, borderColor: color.border, marginBottom: 14, overflow: "hidden" },
+    padded: { padding: 16 },
     divider: { borderTopWidth: 1, borderTopColor: color.border },
-    feature: { padding: 17, borderTopWidth: 2, borderTopColor: color.accent },
-    tile: { width: 36, height: 36, marginRight: 11, borderRadius: 11, alignItems: "center", justifyContent: "center", backgroundColor: color.accent + "1c" },
-    tileText: { color: color.accent, fontSize: 12, fontWeight: "700" },
+    tile: { width: 36, height: 36, marginRight: 11, borderRadius: 11, alignItems: "center", justifyContent: "center", backgroundColor: color.accent + "12" },
     badge: { borderRadius: 7, backgroundColor: color.accent + "1a", paddingHorizontal: 7, paddingVertical: 4 },
     badgeText: { color: color.accent, fontSize: 10, fontWeight: "600" },
-    button: { alignSelf: "flex-start", justifyContent: "center", minHeight: 42, borderRadius: 10, paddingHorizontal: 12, borderWidth: 1, borderColor: color.border },
+    button: { alignSelf: "flex-start", justifyContent: "center", minHeight: 44, borderRadius: 12, paddingHorizontal: 14, borderWidth: 1, borderColor: color.border },
     buttonText: { color: color.text, fontWeight: "600", fontSize: 12 },
-    primary: { backgroundColor: color.accent, borderColor: color.accent },
-    primaryText: { color: color.background },
+    primary: { backgroundColor: color.primary, borderColor: color.primary },
+    primaryText: { color: color.onPrimary },
+    overview: { marginBottom: 16 },
+    hero: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", rowGap: 14,
+      columnGap: 10, minHeight: 103, padding: 18, backgroundColor: color.primary, borderColor: color.accent + "80", borderRadius: 20, borderWidth: 1,
+      overflow: "hidden", marginBottom: 14 },
+    heroStripe: { position: "absolute", right: -45, top: -60, width: 110, height: 260, backgroundColor: "#ffffff0b", transform: [{ rotate: "43deg" }] },
+    heroSummary: { flexDirection: "row", alignItems: "center", flexGrow: 1, flexShrink: 0 },
+    heroDivider: { width: 1, height: 34, backgroundColor: "#ffffff4d", marginHorizontal: 13 },
+    heroCount: { color: "#ffffff", fontSize: 20, fontWeight: "700", letterSpacing: -0.4 },
+    heroButton: { flexDirection: "row", alignItems: "center", justifyContent: "center", minHeight: 44, paddingHorizontal: 13,
+      paddingVertical: 10, borderRadius: 13, backgroundColor: "#ffffff" },
+    heroButtonText: { color: "#102047", fontSize: 12, fontWeight: "700", marginRight: 8 },
+    grid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", marginBottom: 3 },
+    homeTile: { width: "48.2%", minHeight: 121, padding: 16, borderRadius: 18, backgroundColor: color.panel,
+      borderWidth: 1, borderColor: color.border, marginBottom: 13, overflow: "hidden" },
+    homeTileTitle: { color: color.text, fontSize: 17, fontWeight: "700", letterSpacing: -0.3, marginTop: 15 },
+    homeTileCaption: { color: color.muted, fontSize: 12, lineHeight: 17, marginTop: 3 },
+    homeLink: { flexDirection: "row", alignItems: "center", minHeight: 72, padding: 16, borderRadius: 18,
+      borderWidth: 1, borderColor: color.border, backgroundColor: color.panel, marginBottom: 13 },
+    homeLinkIcon: { paddingRight: 14, marginRight: 14, borderRightWidth: 1, borderRightColor: color.border },
+    homeLinkLabel: { color: color.text, fontSize: 16, fontWeight: "600", letterSpacing: -0.2 },
     filters: { flexDirection: "row", flexWrap: "wrap", marginBottom: 12 },
     filter: { marginRight: 6, marginBottom: 4, minHeight: 37 },
     input: { color: color.text, backgroundColor: color.panel, borderColor: color.border, borderWidth: 1, borderRadius: 12,
@@ -98,6 +121,8 @@ export function createMobileScreen(React, RN, store, runtime) {
   const { View, Text, Image, Pressable, ScrollView, TextInput, ActivityIndicator, Switch, Linking, Modal } = RN;
 
   function Screen() {
+    const scrollRef = React.useRef(null);
+    const settingsTarget = React.useRef("");
     const [tab, setTab] = React.useState("Home");
     const [pluginSettings, setPluginSettings] = React.useState(null);
     const [pluginLimit, setPluginLimit] = React.useState(30);
@@ -165,9 +190,25 @@ export function createMobileScreen(React, RN, store, runtime) {
       }
     }
 
-    function go(next) {
+    function go(next, target = "") {
       setNotice("");
+      settingsTarget.current = target;
+      if (next === "Settings" && target === "backup") setBackupOpen(true);
       setTab(next);
+      scrollRef.current?.scrollTo?.({ y: 0, animated: false });
+    }
+
+    function sectionLayout(id) {
+      return event => {
+        if (settingsTarget.current !== id) return;
+        settingsTarget.current = "";
+        scrollRef.current?.scrollTo?.({ y: Math.max(0, event.nativeEvent.layout.y - 12), animated: true });
+      };
+    }
+
+    function icon(name, size = 24, tint = color.text) {
+      return h(Image, { source: { uri: uiIcons[name] || uiIcons.plugins }, accessible: false,
+        style: { width: size, height: size, tintColor: tint, resizeMode: "contain", flexShrink: 0 } });
     }
 
     async function open(url) {
@@ -189,13 +230,14 @@ export function createMobileScreen(React, RN, store, runtime) {
     }
 
     function tile(mark) {
-      return h(View, { style: s.tile, accessible: false }, h(Text, { style: s.tileText }, mark));
+      const name = { BK: "backup", CT: "clock", CO: "community", ST: "status", MC: "external" }[mark] || mark;
+      return h(View, { style: s.tile, accessible: false }, icon(name, 21, color.accent));
     }
 
     function heading(title, description) {
       return h(View, { style: s.intro },
         h(Text, { style: s.heading, accessibilityRole: "header" }, title),
-        h(Text, { style: [s.text, { marginTop: 3 }] }, description));
+        description ? h(Text, { style: [s.text, { marginTop: 3 }] }, description) : null);
     }
 
     function searchBox(value, onChangeText, placeholder, testID) {
@@ -305,7 +347,7 @@ export function createMobileScreen(React, RN, store, runtime) {
       const updating = update && ["checking", "downloading", "restarting"].includes(update.phase);
       return h(React.Fragment, null,
         heading("Settings", "Personalize Moggcord and back up your preferences."),
-        update ? h(View, { style: [s.panel, s.padded] },
+        update ? h(View, { style: [s.panel, s.padded], onLayout: sectionLayout("updates"), testID: "settings-updates" },
           h(View, { style: s.between }, h(Text, { style: s.label }, "Moggcord updates"), badge("v" + update.version)),
           h(Text, { style: [s.text, { marginTop: 8 }], accessibilityLiveRegion: "polite" }, update.message),
           update.recoveryNotice ? h(Text, { style: [s.caption, { marginTop: 8 }] }, update.recoveryNotice) : null,
@@ -316,17 +358,18 @@ export function createMobileScreen(React, RN, store, runtime) {
             }) : button("Downloads ↗", () => void open(origin + "/#download"), { filter: true }),
             update.phase === "available" ? button("Update and restart", () => void runtime.installUpdate(), { primary: true, filter: true }) : null,
             update.phase === "pending" ? button("Restart now", () => void runtime.restartApp(), { primary: true, filter: true }) : null)) : null,
-        h(Text, { style: [s.eyebrow, { marginBottom: 8 }] }, "APPEARANCE"),
-        h(View, { style: s.panel }, Object.entries(palettes).map(([id, palette], index) =>
+        h(View, { onLayout: sectionLayout("appearance"), testID: "settings-appearance" },
+          h(Text, { style: [s.eyebrow, { marginBottom: 8 }] }, "APPEARANCE"),
+          h(View, { style: s.panel }, Object.entries(palettes).map(([id, palette], index) =>
           h(Pressable, {
             key: id, disabled: !ready,
             onPress: () => void apply({ ...preferencesRef.current, palette: id }, palette.name + " selected."),
             accessibilityRole: "button", accessibilityState: { selected: preferences.palette === id, disabled: !ready },
             style: ({ pressed }) => [s.row, s.padded, index > 0 && s.divider, pressed && s.pressed]
-          }, h(View, { style: [s.swatch, { backgroundColor: palette.accent }] }),
+          }, h(View, { style: [s.swatch, { backgroundColor: palette.primary }] }),
           h(Text, { style: [s.label, s.grow] }, palette.name),
-          preferences.palette === id ? badge("Selected") : null))),
-        h(View, { style: s.panel }, actionRow("BK", "Backup & Restore", "Color, saved items and plugin switches.", () => setBackupOpen(value => !value), {
+          preferences.palette === id ? badge("Selected") : null)))),
+        h(View, { style: s.panel, onLayout: sectionLayout("backup"), testID: "settings-backup" }, actionRow("BK", "Backup & Restore", "Color, saved items and plugin switches.", () => setBackupOpen(value => !value), {
           trailing: backupOpen ? "⌄" : "›"
         }),
         backupOpen ? h(View, { style: [s.padded, s.divider] },
@@ -340,43 +383,79 @@ export function createMobileScreen(React, RN, store, runtime) {
             button("Restore", () => {
               try { void apply(readBackup(backup), "Mobile settings restored.", true); }
               catch { setNotice("Choose valid Moggcord Mobile backup JSON."); }
-            }, { primary: true, filter: true, disabled: !ready || !backup.trim() }))) : null));
+            }, { primary: true, filter: true, disabled: !ready || !backup.trim() }))) : null),
+        h(View, { style: s.panel }, actionRow("ST", "Service status", "Moggcord services", () => void open(origin + "/status"), { trailing: "↗" })));
     }
 
     function homeView() {
-      const count = state.plugins.filter(plugin => plugin.active).length;
+      const count = state.plugins.filter(plugin => plugin.enabled).length;
+
+      function homeTile(name, title, description, onPress) {
+        return h(Pressable, { key: name, onPress, accessibilityRole: "button", accessibilityLabel: title,
+          accessibilityHint: description, testID: "home-" + name,
+          style: ({ pressed }) => [s.homeTile, pressed && s.pressed] },
+          h(View, { style: s.between }, icon(name, 25), icon("arrow", 17, color.muted)),
+          h(Text, { style: s.homeTileTitle }, title),
+          h(Text, { style: s.homeTileCaption }, description));
+      }
+
+      function homeLink(name, label, description, onPress, external = false) {
+        return h(Pressable, { onPress, accessibilityRole: external ? "link" : "button", accessibilityLabel: label,
+          accessibilityHint: description || undefined, testID: "home-" + name,
+          style: ({ pressed }) => [s.homeLink, pressed && s.pressed] },
+          h(View, { style: s.homeLinkIcon }, icon(name, 26)),
+          h(View, { style: s.grow }, h(Text, { style: s.homeLinkLabel }, label),
+            description ? h(Text, { style: [s.caption, { marginTop: 3 }] }, description) : null),
+          h(View, { style: { marginLeft: 9 } }, icon(external ? "external" : "arrow", 18, color.muted)));
+      }
+
+      const update = state.updater;
+      const updateLabel = update?.phase === "available" ? "Update available"
+        : update?.phase === "pending" ? "Update ready" : "Check for updates";
+      const updateDescription = update?.phase === "available" ? "Version " + update.availableVersion
+        : update?.phase === "pending" ? "Restart to apply" : "Get the latest version of Moggcord";
       return h(React.Fragment, null,
-        heading("Your setup", "Plugins, community uploads and appearance in one place."),
-        h(View, { style: [s.panel, s.feature] },
-          h(View, { style: s.between },
-            h(Text, { style: s.eyebrow }, "PLUGIN LIBRARY"), badge(count + " enabled")),
-          h(Text, { style: [s.heading, { fontSize: 22, marginTop: 7 }] }, "Make Discord yours"),
-          h(Text, { style: [s.text, { marginTop: 4 }] }, "Your plugins, ready to switch on."),
-          h(View, { style: { marginTop: 12 } }, button("Browse plugins", () => go("Plugins"), { primary: true }))),
+        h(Text, { style: [s.heading, s.overview], accessibilityRole: "header" }, "Overview"),
+        h(View, { style: s.hero },
+          h(View, { style: s.heroStripe, pointerEvents: "none", accessible: false }),
+          h(View, { style: s.heroSummary }, icon("plugins", 29, "#ffffff"),
+            h(View, { style: s.heroDivider }),
+            h(Text, { style: s.heroCount, testID: "home-enabled-count", accessibilityLiveRegion: "polite" }, ready ? count + " enabled" : "Loading…")),
+          h(Pressable, { onPress: () => go("Plugins"), accessibilityRole: "button", accessibilityLabel: "Browse plugins",
+            style: ({ pressed }) => [s.heroButton, pressed && s.pressed] },
+            h(Text, { style: s.heroButtonText }, "Browse plugins"), icon("arrow", 17, "#102047"))),
+        h(View, { style: s.grid },
+          homeTile("plugins", "Plugins", "Manage your plugins", () => go("Plugins")),
+          homeTile("community", "Community", ready ? preferences.saved.length + " saved" : "Loading…", () => go("Community")),
+          homeTile("appearance", "Appearance", "Choose a color palette", () => go("Settings", "appearance")),
+          homeTile("backup", "Backup", "Back up or restore", () => go("Settings", "backup"))),
         state.callStarted == null ? null : h(View, { style: s.panel },
           actionRow("CT", "Call Timer", "Current call · " + duration(state.callStarted, time), () => go("Plugins"))),
-        h(Text, { style: [s.eyebrow, { marginBottom: 8 }] }, "QUICK LINKS"),
-        h(View, { style: s.panel },
-          actionRow("CO", "Community", preferences.saved.length + " saved uploads", () => go("Community")),
-          actionRow("ST", "Service status", "Moggcord services", () => void open(origin + "/status"), { divider: true, trailing: "↗" }),
-          actionRow("MC", "Website", "moggcord.cc", () => void open(origin), { divider: true, trailing: "↗" })));
+        homeLink("update", updateLabel, updateDescription, () => {
+          go("Settings", "updates");
+          if (update?.supported) void runtime.checkForUpdates();
+        }),
+        homeLink("external", "moggcord.cc", "", () => void open(origin), true));
     }
 
     const content = tab === "Plugins" ? pluginView() : tab === "Community" ? communityView()
       : tab === "Settings" ? settingsView() : homeView();
-    return h(ScrollView, { style: s.page, contentContainerStyle: s.content, keyboardShouldPersistTaps: "handled" },
-      h(View, { style: s.row },
-        h(Image, { source: { uri: logo }, style: s.logo, accessibilityIgnoresInvertColors: true }),
-        h(View, { style: s.grow },
-          h(Text, { style: s.eyebrow }, "MOGGCORD"),
-          h(Text, { style: s.brand, accessibilityRole: "header" }, "Mobile client")),
-        badge("v" + MOGGCORD_MOBILE_VERSION)),
-      h(View, { style: s.tabs }, tabs.map(name => h(Pressable, {
-        key: name, onPress: () => go(name), accessibilityRole: "tab", accessibilityState: { selected: name === tab },
-        style: ({ pressed }) => [s.tab, name === tab && s.selectedTab, pressed && s.pressed]
-      }, h(Text, { numberOfLines: 1, style: [s.tabText, name === tab && s.selectedTabText] }, name)))),
-      notice ? h(View, { style: [s.panel, s.padded] }, h(Text, { style: s.text, accessibilityLiveRegion: "polite" }, notice)) : null,
-      content,
+    return h(View, { style: s.page },
+      h(ScrollView, { ref: scrollRef, style: s.page, contentContainerStyle: s.content, keyboardShouldPersistTaps: "handled", keyboardDismissMode: "on-drag" },
+        h(View, { style: s.brandRow },
+          h(Image, { source: { uri: logo }, style: s.logo, accessibilityIgnoresInvertColors: true, accessible: false }),
+          h(View, { style: s.brandSeparator }),
+          h(View, { style: [s.grow, { marginRight: 8 }] },
+            h(Text, { style: s.brand, numberOfLines: 1, adjustsFontSizeToFit: true, minimumFontScale: 0.8 }, "Moggcord Mobile")),
+          badge("v" + MOGGCORD_MOBILE_VERSION)),
+        notice ? h(View, { style: [s.panel, s.padded] }, h(Text, { style: s.text, accessibilityLiveRegion: "polite" }, notice)) : null,
+        content),
+      h(RN.SafeAreaView || View, { style: s.dockSafe },
+        h(View, { style: s.dock, accessibilityRole: "tablist" }, tabs.map(name => h(Pressable, {
+          key: name, onPress: () => go(name), accessibilityRole: "tab", accessibilityLabel: name, accessibilityState: { selected: name === tab },
+          testID: "nav-" + name.toLowerCase(), style: ({ pressed }) => [s.tab, pressed && s.pressed]
+        }, icon(name.toLowerCase(), 23, name === tab ? color.accent : color.muted),
+        h(Text, { numberOfLines: 1, style: [s.tabText, name === tab && s.selectedTabText] }, name))))),
       pluginSettings && Modal ? h(Modal, {
         visible: true, animationType: "slide", presentationStyle: "pageSheet", onRequestClose: () => setPluginSettings(null)
       }, h(View, { style: s.page },

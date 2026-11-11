@@ -2,9 +2,9 @@ import { normalizeEntry } from "./community.js";
 import { normalizePluginIds } from "./plugins.js";
 
 export const palettes = Object.freeze({
-  midnight: { name: "Midnight", background: "#0c0e17", panel: "#141827", accent: "#afb6ff", border: "#303853", muted: "#a0aac9", text: "#f5f6ff" },
-  cobalt: { name: "Cobalt", background: "#09131f", panel: "#102338", accent: "#78cbff", border: "#284864", muted: "#a1bad0", text: "#eef8ff" },
-  dusk: { name: "Dusk", background: "#170f1d", panel: "#241830", accent: "#d9a9ff", border: "#50365f", muted: "#bfaac8", text: "#fbf1ff" }
+  midnight: { name: "Midnight", background: "#080f1d", panel: "#101c30", accent: "#84a9ff", primary: "#205bf5", onPrimary: "#ffffff", border: "#2c4165", muted: "#abbad4", text: "#f4f7ff" },
+  cobalt: { name: "Cobalt", background: "#081326", panel: "#10233e", accent: "#91b7ff", primary: "#225dff", onPrimary: "#ffffff", border: "#344f78", muted: "#b2c3e0", text: "#f2f7ff" },
+  dusk: { name: "Dusk", background: "#140e20", panel: "#221831", accent: "#d9b4ff", primary: "#7944c4", onPrimary: "#ffffff", border: "#513a6c", muted: "#bfaecc", text: "#fbf4ff" }
 });
 const storageKey = "cc.moggcord.mobile.preferences.v1";
 const maxBackupLength = 65536;
