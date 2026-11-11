@@ -11,8 +11,8 @@ async function host(nativeIcons = true) {
     generate({ row }) { return row; }
   }
   const original = RowManager.prototype.generate;
-  const { default: plugin } = await nativeModule("runtime/src/plugins/platformIndicators/index.tsx", {
-    "@core/i18n": { t: text => text, tx: text => text },
+  const renderer = await nativeModule("runtime/src/plugins/platformIndicators/render.ts", {
+    "@core/i18n": { t: text => text },
     "@lib/api/patcher": {
       after(key, object, callback) {
         const original = object[key];
@@ -23,7 +23,11 @@ async function host(nativeIcons = true) {
         return () => { object[key] = original; };
       }
     },
-    "@metro": { findByName: () => RowManager },
+    "@metro": { findByName: () => RowManager }
+  }, { __MOGGCORD_PLATFORM_ICONS__: nativeIcons ? { apiVersion: 1 } : undefined });
+  const { default: plugin } = await nativeModule("runtime/src/plugins/platformIndicators/index.tsx", {
+    "@core/i18n": { tx: text => text },
+    "./render": renderer,
     "../api": { definePlugin: definition => ({ ...definition, store: { messages: true, self: false, offline: true } }) },
     "../common": {
       currentUserId: () => "self",
@@ -33,12 +37,12 @@ async function host(nativeIcons = true) {
       },
       subscribe(name, callback) { events.set(name, callback); return () => events.delete(name); }
     }
-  }, { __MOGGCORD_PLATFORM_ICONS__: nativeIcons ? { apiVersion: 1 } : undefined });
+  });
   const start = () => plugin.start({ store: plugin.store, cleanup: (...callbacks) => cleanups.push(...callbacks) });
   const row = { type: 1, message: { timestamp: "10:42" } };
   const render = (author = { id: "other" }, target = row) =>
     new RowManager().generate({ message: { author }, row: target });
-  return { plugin, start, render, row, events, presence, sessions, RowManager, original,
+  return { plugin, start, render, row, events, presence, sessions, RowManager, original, renderer,
     stop: () => cleanups.reverse().forEach(cleanup => cleanup()) };
 }
 
@@ -82,4 +86,30 @@ test("older apps report the required native update before a timestamp is modifie
   assert.throws(state.start, /Install the latest Moggcord Mobile app once/);
   assert.equal(state.RowManager.prototype.generate, state.original);
   assert.equal(state.row.message.timestamp, "10:42");
+});
+
+test("the local platform preview coexists with real indicators and changes only the current user's rendered icon", async () => {
+  const state = await host();
+  const { default: preview } = await nativeModule("runtime/src/plugins/platformSpoofer/index.tsx", {
+    "@core/i18n": { tx: text => text },
+    "../api": { definePlugin: definition => ({ ...definition, store: { device: "browser" } }) },
+    "../common": { currentUserId: () => "self" },
+    "../platformIndicators/render": state.renderer
+  });
+  const cleanups = [];
+  preview.start({ store: preview.store, cleanup: callback => cleanups.push(callback) });
+  assert.equal(state.render().message.timestamp, "10:42");
+  assert.equal(state.render({ id: "self" }).message.timestamp, "10:42  ⁣mcpi|w0⁣");
+
+  state.start();
+  state.plugin.store.self = true;
+  assert.equal(state.render().message.timestamp, "10:42  ⁣mcpi|d2w1m0⁣");
+  assert.equal(state.render({ id: "self" }).message.timestamp, "10:42  ⁣mcpi|w0⁣");
+  preview.store.device = "mobile";
+  assert.equal(state.render({ id: "self" }).message.timestamp, "10:42  ⁣mcpi|m0⁣");
+  cleanups.forEach(cleanup => cleanup());
+  assert.equal(state.render({ id: "self" }).message.timestamp, "10:42  ⁣mcpi|d1m0⁣");
+  assert.equal(state.sessions.desktop.clientInfo.client, "desktop");
+  state.stop();
+  assert.equal(state.RowManager.prototype.generate, state.original);
 });

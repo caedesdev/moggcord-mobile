@@ -180,6 +180,7 @@
     "moggcord.pin-icon": "Adds a pin icon to pinned messages",
     "moggcord.ping-notifications": "Customizable notifications with improved mention formatting",
     "moggcord.platform-indicators": "Shows which devices people are online on (desktop, web or mobile) next to their messages.",
+    "moggcord.platform-spoofer": "Preview a different device icon on your own messages. Only visible on this device.",
     "moggcord.pokedex": "Look up a Pokémon's types and stats with /pokemon",
     "moggcord.polish-wording": "Tweaks your messages to make them look nicer and have better grammar. See settings",
     "moggcord.preview-message": "Lets you preview your message before sending it.",

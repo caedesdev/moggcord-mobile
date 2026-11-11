@@ -36,7 +36,7 @@ test("every bundled plugin ID resolves to its own implementation", async () => {
   const ids = JSON.parse(await readFile("shared/mobile-plugin-ids.json", "utf8"));
   const loaders = new Map([...manifest.matchAll(/"(moggcord\.[a-z0-9-]+)": \(\) => require\("\.\/([^"]+)"\)/g)]
     .map(match => [match[1], match[2]]));
-  assert.equal(ids.length, 303);
+  assert.equal(ids.length, 304);
   assert.equal(loaders.size, ids.length);
   for (const id of ids) {
     const directory = loaders.get(id);

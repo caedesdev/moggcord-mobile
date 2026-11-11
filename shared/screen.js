@@ -2,6 +2,7 @@ import logo from "../runtime/src/assets/icons/moggcord.png";
 import { uiIcons } from "./icons.js";
 import { bundledPluginId, libraryUrl, loadLibrary, origin } from "./community.js";
 import { normalizePreferences, palettes, readBackup, toggleSaved } from "./preferences.js";
+import { createAccountProfiles } from "./account-profiles.js";
 
 const tabs = ["Home", "Plugins", "Community", "Settings"];
 const sections = [["plugin", "Plugins"], ["theme", "Themes"], ["saved", "Saved"]];
@@ -119,6 +120,7 @@ function stylesFor(color) {
 export function createMobileScreen(React, RN, store, runtime) {
   const h = React.createElement;
   const { View, Text, Image, Pressable, ScrollView, TextInput, ActivityIndicator, Switch, Linking, Modal } = RN;
+  const AccountProfiles = createAccountProfiles(React, RN);
 
   function Screen() {
     const scrollRef = React.useRef(null);
@@ -136,6 +138,7 @@ export function createMobileScreen(React, RN, store, runtime) {
     const [notice, setNotice] = React.useState("");
     const [backup, setBackup] = React.useState("");
     const [backupOpen, setBackupOpen] = React.useState(false);
+    const [accountsOpen, setAccountsOpen] = React.useState(false);
     const [time, setTime] = React.useState(Date.now);
     const preferencesRef = React.useRef(preferences);
     const writeId = React.useRef(0);
@@ -173,20 +176,32 @@ export function createMobileScreen(React, RN, store, runtime) {
       return () => clearInterval(timer);
     }, [state.callStarted, tab]);
 
-    async function apply(input, message = "", updatePlugins = false) {
-      if (!ready) return;
+    async function apply(input, message = "", updatePlugins = false, accountId) {
+      if (!ready || (accountId && runtime.accounts.current()?.id !== accountId)) return false;
       const current = ++writeId.current;
       const next = normalizePreferences(input);
       if (!updatePlugins) next.enabledPlugins = runtime.currentEnabled?.() ?? next.enabledPlugins;
-      preferencesRef.current = next;
-      setPreferences(next);
+      if (!accountId) {
+        preferencesRef.current = next;
+        setPreferences(next);
+      }
       setNotice("");
       try {
-        if (updatePlugins) await runtime.setEnabled(next.enabledPlugins);
+        const restored = !updatePlugins || await runtime.setEnabled(next.enabledPlugins, accountId);
+        if (accountId && (runtime.accounts.current()?.id !== accountId || current !== writeId.current)) return false;
+        if (accountId) next.enabledPlugins = runtime.currentEnabled();
         await store.save(next);
-        if (current === writeId.current) setNotice(store.persistent ? message : "Changes apply for this session.");
+        if (current === writeId.current) {
+          if (accountId) {
+            preferencesRef.current = next;
+            setPreferences(next);
+          }
+          setNotice(store.persistent ? message : "Changes apply for this session.");
+        }
+        return restored !== false;
       } catch {
         if (current === writeId.current) setNotice("Preferences could not be saved.");
+        return false;
       }
     }
 
@@ -358,6 +373,17 @@ export function createMobileScreen(React, RN, store, runtime) {
             }) : button("Downloads ↗", () => void open(origin + "/#download"), { filter: true }),
             update.phase === "available" ? button("Update and restart", () => void runtime.installUpdate(), { primary: true, filter: true }) : null,
             update.phase === "pending" ? button("Restart now", () => void runtime.restartApp(), { primary: true, filter: true }) : null)) : null,
+        runtime.accounts ? h(View, { style: s.panel },
+          actionRow("community", "Account profiles", "Discord accounts and settings backups.", () => setAccountsOpen(value => !value), {
+            trailing: accountsOpen ? "⌄" : "›"
+          }),
+          accountsOpen ? h(AccountProfiles, {
+            accounts: runtime.accounts, styles: s, color, button, ready,
+            capture: () => ({
+              ...preferencesRef.current, enabledPlugins: runtime.currentEnabled?.() ?? preferencesRef.current.enabledPlugins
+            }),
+            restore: backup => apply(backup.settings, "", true, backup.account.id)
+          }) : null) : null,
         h(View, { onLayout: sectionLayout("appearance"), testID: "settings-appearance" },
           h(Text, { style: [s.eyebrow, { marginBottom: 8 }] }, "APPEARANCE"),
           h(View, { style: s.panel }, Object.entries(palettes).map(([id, palette], index) =>

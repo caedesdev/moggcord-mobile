@@ -13,6 +13,7 @@ import { manifest } from "@plugins/manifest";
 import PluginSettings from "@plugins/ui/PluginSettings";
 import descriptions from "@plugins/descriptions.json";
 import { MoggcordIcon, moggcordIconSource } from "./BrandIcon";
+import { discordAccounts } from "./accounts";
 
 const aliases: Record<string, string> = {
     messagelogger: "moggcord.message-logger",
@@ -30,6 +31,7 @@ const updater = createMobileUpdater({ version: MOGGCORD_MOBILE_VERSION, bridge: 
 updater.subscribe(announce);
 
 const runtime = {
+    accounts: discordAccounts,
     snapshot: () => ({
         plugins: manifest.map(info => ({
             id: info.id, title: info.name, priority: info.popular ?? 10000,
@@ -44,9 +46,13 @@ const runtime = {
         })).sort((a, b) => Number(b.enabled) - Number(a.enabled) || a.priority - b.priority || a.title.localeCompare(b.title)),
         log: [], callStarted: null, fakeStatus: "", updater: updater.snapshot()
     }),
-    setEnabled(ids: string[]) {
+    setEnabled(ids: string[], accountId?: string) {
         const selected = new Set(ids.map(id => aliases[id] ?? id));
         const operation = updates.then(async () => {
+            if (accountId && discordAccounts.current()?.id !== accountId) {
+                throw new Error("The Discord account changed before the backup could be restored.");
+            }
+            let failed = false;
             const operations = manifest.map(async info => {
                 const wanted = selected.has(info.id);
                 if (wanted === isPluginEnabled(info.id)) return;
@@ -57,6 +63,7 @@ const runtime = {
                     if (wanted) await enablePlugin(info.id, true);
                     else disablePlugin(info.id);
                 } catch (error) {
+                    failed = true;
                     failures.add(info.id);
                     if (isPluginEnabled(info.id)) disablePlugin(info.id);
                     console.warn("[Moggcord]", info.name, String(error));
@@ -66,8 +73,9 @@ const runtime = {
                 }
             });
             await Promise.all(operations);
+            return !failed;
         });
-        updates = operation.catch(() => {});
+        updates = operation.then(() => {}, () => {});
         return operation;
     },
     subscribe(listener: () => void) {
