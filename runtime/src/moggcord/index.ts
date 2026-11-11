@@ -5,6 +5,8 @@ import { createMobileScreen } from "../../../shared/screen";
 import { createPreferenceStore } from "../../../shared/preferences";
 import { createMobileUpdater } from "../../../shared/updates";
 import { BundleUpdaterManager, NativeCacheModule } from "@lib/api/native/modules";
+import { flushStorages } from "@lib/api/storage";
+import { flushStorage } from "@core/vendetta/storage";
 import { registerSection } from "@ui/settings";
 import { disablePlugin, enablePlugin, isPluginEnabled, registeredPlugins, pluginSettings } from "@lib/addons/plugins";
 import { loadMoggcordPlugin } from "@plugins";
@@ -26,8 +28,25 @@ const pending = new Set<string>();
 const announce = () => subscribers.forEach(update => update());
 const preferences = createPreferenceStore(() => NativeCacheModule);
 let updates = Promise.resolve();
+let pluginRestart: "idle" | "pending" | "restarting" | "failed" = "idle";
+const changedStores = new Set<object>();
+const enabledPluginIds = () => manifest.filter(info => isPluginEnabled(info.id)).map(info => info.id);
+const reloadDiscord = typeof BundleUpdaterManager?.reload === "function" ? async () => {
+    await updates;
+    await Promise.all([flushStorages(), ...Array.from(changedStores, store => flushStorage(store))]);
+    await BundleUpdaterManager.reload();
+} : undefined;
+
+function markPluginChange(store?: object) {
+    if (store) changedStores.add(store);
+    if (pluginRestart === "idle" || pluginRestart === "failed") {
+        pluginRestart = "pending";
+        announce();
+    }
+}
+
 const updater = createMobileUpdater({ version: MOGGCORD_MOBILE_VERSION, bridge: (globalThis as any).__MOGGCORD_UPDATER__,
-    reload: typeof BundleUpdaterManager?.reload === "function" ? () => BundleUpdaterManager.reload() : undefined });
+    reload: reloadDiscord });
 updater.subscribe(announce);
 
 const runtime = {
@@ -44,14 +63,17 @@ const runtime = {
             failed: failures.has(info.id), busy: pending.has(info.id),
             hasSettings: info.hasSettings === true
         })).sort((a, b) => Number(b.enabled) - Number(a.enabled) || a.priority - b.priority || a.title.localeCompare(b.title)),
-        log: [], callStarted: null, fakeStatus: "", updater: updater.snapshot()
+        log: [], callStarted: null, fakeStatus: "", updater: updater.snapshot(),
+        pluginRestart, canRestartDiscord: Boolean(reloadDiscord)
     }),
-    setEnabled(ids: string[], accountId?: string) {
-        const selected = new Set(ids.map(id => aliases[id] ?? id));
+    setEnabled(ids: string[] | ((enabled: string[]) => string[]), accountId?: string) {
+        if (pluginRestart === "restarting") return Promise.resolve(false);
         const operation = updates.then(async () => {
             if (accountId && discordAccounts.current()?.id !== accountId) {
                 throw new Error("The Discord account changed before the backup could be restored.");
             }
+            const wantedIds = typeof ids === "function" ? ids(enabledPluginIds()) : ids;
+            const selected = new Set(wantedIds.map(id => aliases[id] ?? id));
             let failed = false;
             const operations = manifest.map(async info => {
                 const wanted = selected.has(info.id);
@@ -62,6 +84,7 @@ const runtime = {
                 try {
                     if (wanted) await enablePlugin(info.id, true);
                     else disablePlugin(info.id);
+                    markPluginChange();
                 } catch (error) {
                     failed = true;
                     failures.add(info.id);
@@ -78,6 +101,9 @@ const runtime = {
         updates = operation.then(() => {}, () => {});
         return operation;
     },
+    setPluginEnabled(id: string, enabled: boolean): Promise<boolean> {
+        return runtime.setEnabled(current => enabled ? [...current, id] : current.filter(value => value !== id));
+    },
     subscribe(listener: () => void) {
         subscribers.add(listener);
         const emitter = (pluginSettings as any)[Symbol.for("vendetta.storage.emitter")];
@@ -89,12 +115,21 @@ const runtime = {
             emitter?.off("DEL", listener);
         };
     },
-    currentEnabled() {
-        return manifest.filter(info => isPluginEnabled(info.id)).map(info => info.id);
-    },
+    currentEnabled: enabledPluginIds,
     settingsComponent(id: string) {
         const plugin = loadMoggcordPlugin(id);
-        return () => createElement(PluginSettings, { plugin });
+        return () => createElement(PluginSettings, { plugin, onChange: markPluginChange });
+    },
+    async restartForPluginChanges() {
+        if (!reloadDiscord || (pluginRestart !== "pending" && pluginRestart !== "failed")) return;
+        pluginRestart = "restarting";
+        announce();
+        try {
+            await reloadDiscord();
+        } catch {
+            pluginRestart = "failed";
+            announce();
+        }
     },
     clearLog() {},
     checkForUpdates: () => updater.check(),

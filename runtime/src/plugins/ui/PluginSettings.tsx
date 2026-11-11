@@ -8,10 +8,11 @@ import { t } from "@core/i18n";
 import { useProxy } from "@core/vendetta/storage";
 import { Stack, TableRadioGroup, TableRadioRow, TableRowGroup, TableSwitchRow, Text, TextInput } from "@metro/common/components";
 import { ErrorBoundary } from "@ui/components";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ScrollView, View } from "react-native";
 
 import type { MoggcordPlugin, SettingDef } from "../api";
+import { onSettingChange } from "../api";
 
 function NumberSetting({ def, value, onChange }: { def: Extract<SettingDef, { type: "number"; }>; value: number; onChange(v: number): void; }) {
     const [text, setText] = useState(String(value));
@@ -69,10 +70,21 @@ function Setting({ id, def, store }: { id: string; def: SettingDef; store: any; 
     }
 }
 
-export default function PluginSettings({ plugin }: { plugin: MoggcordPlugin<any>; }) {
+export default function PluginSettings({ plugin, onChange }: {
+    plugin: MoggcordPlugin<any>;
+    onChange?: (store: object) => void;
+}) {
     const store = useProxy(plugin.store);
+    const ready = Boolean((store as any)[Symbol.for("vendetta.storage.emitter")]);
+    useEffect(() => {
+        if (!ready || !onChange) return;
+        return onSettingChange(store, key => {
+            if (Object.prototype.hasOwnProperty.call(plugin.settings ?? {}, key)) onChange(store);
+        });
+    }, [ready, store, plugin, onChange]);
+
     // Drawn once the settings have loaded, so fields start with the saved values
-    if (!(store as any)[Symbol.for("vendetta.storage.emitter")]) return null;
+    if (!ready) return null;
     const entries = Object.entries(plugin.settings ?? {}) as [string, SettingDef][];
 
     // Switches next to each other share a group, like Discord's own settings

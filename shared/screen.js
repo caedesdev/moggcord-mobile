@@ -4,6 +4,9 @@ import { bundledPluginId, libraryUrl, loadLibrary, origin } from "./community.js
 import { normalizePreferences, palettes, readBackup, toggleSaved } from "./preferences.js";
 import { createAccountProfiles } from "./account-profiles.js";
 
+const success = "#83e5b3";
+const warning = "#ffcb84";
+const error = "#ff9aa6";
 const tabs = ["Home", "Plugins", "Community", "Settings"];
 const sections = [["plugin", "Plugins"], ["theme", "Themes"], ["saved", "Saved"]];
 const emptyResults = { entries: [], total: 0, next: 0, error: "" };
@@ -83,6 +86,9 @@ function stylesFor(color) {
     tile: { width: 36, height: 36, marginRight: 11, borderRadius: 11, alignItems: "center", justifyContent: "center", backgroundColor: color.accent + "12" },
     badge: { borderRadius: 7, backgroundColor: color.accent + "1a", paddingHorizontal: 7, paddingVertical: 4 },
     badgeText: { color: color.accent, fontSize: 10, fontWeight: "600" },
+    restartArea: { width: "100%", maxWidth: 680, alignSelf: "center", paddingHorizontal: 16, paddingTop: 8 },
+    restartPanel: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 10,
+      padding: 12, backgroundColor: color.panel, borderRadius: 12, borderWidth: 1, borderColor: warning + "55" },
     button: { alignSelf: "flex-start", justifyContent: "center", minHeight: 44, borderRadius: 12, paddingHorizontal: 14, borderWidth: 1, borderColor: color.border },
     buttonText: { color: color.text, fontWeight: "600", fontSize: 12 },
     primary: { backgroundColor: color.primary, borderColor: color.primary },
@@ -240,8 +246,27 @@ export function createMobileScreen(React, RN, store, runtime) {
       }, h(Text, { style: [s.buttonText, selected && s.selectedTabText, primary && s.primaryText] }, label));
     }
 
-    function badge(label) {
-      return h(View, { style: s.badge }, h(Text, { style: s.badgeText }, label));
+    function badge(label, tone = color.accent) {
+      return h(View, { style: [s.badge, { backgroundColor: tone + "1a" }] },
+        h(Text, { style: [s.badgeText, { color: tone }] }, label));
+    }
+
+    const restarting = state.pluginRestart === "restarting";
+
+    function restartBanner() {
+      if (!state.pluginRestart || state.pluginRestart === "idle") return null;
+      const text = restarting ? "Saving changes and restarting Discord…"
+        : state.pluginRestart === "failed" ? "Could not restart. Try again or reopen Discord."
+        : state.canRestartDiscord ? "Apply your plugin changes." : "Close and reopen Discord to apply your plugin changes.";
+      return h(View, { style: s.restartArea, testID: "plugin-restart-banner" },
+        h(View, { style: s.restartPanel },
+          h(View, { style: { flexGrow: 1, flexShrink: 1, flexBasis: 128 } },
+            h(Text, { style: [s.label, { color: warning }] }, "Restart Discord"),
+            h(Text, { style: s.caption, accessibilityLiveRegion: "polite" }, text)),
+          state.canRestartDiscord ? button("Restart now", () => {
+            RN.Keyboard?.dismiss?.();
+            void runtime.restartForPluginChanges();
+          }, { disabled: restarting }) : null));
     }
 
     function tile(mark) {
@@ -277,6 +302,11 @@ export function createMobileScreen(React, RN, store, runtime) {
     }
 
     function changePlugin(plugin, enable) {
+      if (runtime.setPluginEnabled) {
+        void runtime.setPluginEnabled(plugin.id, enable).then(() => apply(preferencesRef.current))
+          .catch(() => setNotice("Could not save this plugin change."));
+        return;
+      }
       const current = preferencesRef.current;
       const live = runtime.currentEnabled?.() ?? current.enabledPlugins;
       const enabledPlugins = enable ? [...live, plugin.id] : live.filter(id => id !== plugin.id);
@@ -285,7 +315,10 @@ export function createMobileScreen(React, RN, store, runtime) {
 
     function mobilePlugin(plugin, index) {
       const unavailable = !plugin.available && !plugin.enabled;
-      const label = plugin.failed ? "Could not start" : plugin.active ? "Enabled" : plugin.available ? "Disabled" : "Waiting for Discord";
+      const label = plugin.busy ? "Applying…" : plugin.failed ? "Could not start" : plugin.active ? "Enabled"
+        : !plugin.available ? "Waiting for Discord" : plugin.enabled ? "Pending start" : "Disabled";
+      const tone = plugin.busy ? warning : plugin.failed ? error : plugin.active ? success
+        : plugin.enabled ? warning : color.muted;
       return h(View, { key: plugin.id, style: [s.padded, index > 0 && s.divider] },
         h(View, { style: s.row },
           tile(plugin.mark),
@@ -294,12 +327,12 @@ export function createMobileScreen(React, RN, store, runtime) {
             h(Text, { style: s.caption }, plugin.category + (plugin.experimental ? " · Experimental" : ""))),
           h(Switch, {
             value: plugin.enabled, onValueChange: value => changePlugin(plugin, value),
-            disabled: !ready || unavailable || plugin.busy, accessibilityLabel: plugin.title, testID: "plugin-" + plugin.id,
-            trackColor: { true: color.accent, false: color.border }, ios_backgroundColor: color.border
+            disabled: !ready || unavailable || plugin.busy || restarting, accessibilityLabel: plugin.title, testID: "plugin-" + plugin.id,
+            trackColor: { true: "#238557", false: color.border }, ios_backgroundColor: color.border
           })),
         h(Text, { style: [s.text, { marginTop: 8 }] }, plugin.description),
         h(View, { style: [s.row, { marginTop: 8, flexWrap: "wrap" }] },
-          badge(label),
+          badge(label, tone),
           plugin.active && plugin.id === "calltimer" && h(Text, { style: [s.caption, { marginLeft: 8 }] },
             state.callStarted == null ? "No active call" : duration(state.callStarted, time)),
           plugin.active && plugin.id === "fakedeafen" && h(Text, { style: [s.caption, { marginLeft: 8 }] }, state.fakeStatus)),
@@ -342,7 +375,7 @@ export function createMobileScreen(React, RN, store, runtime) {
                 h(Text, { style: s.caption }, [entry.kind === "theme" ? "Theme" : "Plugin", entry.version, entry.author].filter(Boolean).join(" · "))),
               button(saved ? "Saved" : "Save", () => void apply(toggleSaved(preferencesRef.current, entry)), {
                 selected: saved, disabled: !ready, accessibilityLabel: (saved ? "Remove " : "Save ") + entry.name
-              })),
+          }, { disabled: restarting })),
             entry.description ? h(Text, { style: [s.text, { marginTop: 8 }], numberOfLines: 4 }, entry.description) : null,
             h(View, { style: [s.filters, { marginTop: 10 }] },
               plugin ? button(canEnable ? "Enable mobile plugin" : "View mobile plugin", () => {
@@ -467,6 +500,7 @@ export function createMobileScreen(React, RN, store, runtime) {
     const content = tab === "Plugins" ? pluginView() : tab === "Community" ? communityView()
       : tab === "Settings" ? settingsView() : homeView();
     return h(View, { style: s.page },
+      restartBanner(),
       h(ScrollView, { ref: scrollRef, style: s.page, contentContainerStyle: s.content, keyboardShouldPersistTaps: "handled", keyboardDismissMode: "on-drag" },
         h(View, { style: s.brandRow },
           h(Image, { source: { uri: logo }, style: s.logo, accessibilityIgnoresInvertColors: true, accessible: false }),
@@ -487,7 +521,8 @@ export function createMobileScreen(React, RN, store, runtime) {
       }, h(View, { style: s.page },
         h(View, { style: [s.between, s.padded] }, h(Text, { style: s.label }, "Plugin settings"),
           button("Done", () => setPluginSettings(null))),
-        h(pluginSettings))) : null);
+        restartBanner(),
+        h(View, { style: s.grow, pointerEvents: restarting ? "none" : "auto" }, h(pluginSettings)))) : null);
   }
 
   class ScreenBoundary extends React.Component {

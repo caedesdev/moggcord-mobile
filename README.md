@@ -14,7 +14,7 @@ Moggcord Mobile is a separate project with a shared React Native payload. Open D
 - **Community library.** Search Moggcord's public plugins and themes and save favorites on your device.
 - **Color profiles.** Switch between Midnight, Cobalt and Dusk for the Moggcord panel.
 - **Backup & Restore.** Export your color profile, favorites and plugin switches as JSON in Settings.
-- **Account profiles.** In Settings, save, share and restore those preferences for the signed-in account. Manage accounts opens Discord's native picker when available, with Discord web sign-in as a fallback.
+- **Account profiles.** In Settings, save, share and restore those preferences for the signed-in account. Switch accounts opens Discord's native picker when enabled for the current Discord session.
 - **Quick actions.** Open update checking and the website from Home. Service status remains available in Settings.
 
 The plugin list uses React Native implementations for Discord Mobile. Color profiles style the Moggcord panel.

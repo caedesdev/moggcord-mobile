@@ -1,10 +1,8 @@
 import { createAccountBackup, maxAccountBackupLength, readAccountBackup } from "./account-backups.js";
 
-const signInUrl = "https://discord.com/login";
-
 export function createAccountProfiles(React, RN) {
   const { createElement: h, useEffect, useRef, useState } = React;
-  const { Linking, Share, Text, TextInput, View } = RN;
+  const { Share, Text, TextInput, View } = RN;
 
   function BackupControls({ account, accounts, capture, restore, ready, styles, color, button }) {
     const [saved, setSaved] = useState(null);
@@ -69,7 +67,7 @@ export function createAccountProfiles(React, RN) {
 
     const disabled = loading || busy || !ready;
     return h(View, null,
-      h(Text, { style: styles.label }, account.username ? "@" + account.username : "Discord account"),
+      h(Text, { style: styles.label }, "Settings backup"),
       h(Text, { style: [styles.caption, { marginTop: 4 }] }, loading ? "Reading account backup…"
         : saved ? "Saved " + new Date(saved.savedAt).toLocaleString("en-US") : "No backup for this account yet."),
       h(View, { style: [styles.filters, { marginTop: 12, marginBottom: 0 }] },
@@ -126,23 +124,23 @@ export function createAccountProfiles(React, RN) {
       setNotice("");
       try {
         if (!await accounts.openManager()) {
-          await Linking.openURL(signInUrl);
-          setNotice("Continue in your browser. To sign in to the app, use Discord's sign-in screen.");
+          setNotice("Account switching is unavailable in this Discord session.");
         }
       } catch {
-        setNotice("Could not open Discord sign-in.");
+        setNotice("Could not open Discord’s account switcher.");
       } finally {
         setOpening(false);
       }
     }
 
     return h(View, { style: [styles.padded, styles.divider] },
-      h(Text, { style: [styles.text, { marginBottom: 12 }] },
-        "Keep a backup of the Moggcord color palette, saved uploads and plugin switches for each Discord account."),
-      account ? h(BackupControls, { ...props, key: account.id, account }) :
-        h(Text, { style: styles.caption }, "Sign in to Discord to save an account backup."),
-      h(View, { style: { marginTop: 12 } },
-        button(account ? "Manage Discord accounts" : "Open Discord sign-in", manageAccounts, { disabled: opening })),
-      notice ? h(Text, { style: [styles.caption, { marginTop: 9 }], accessibilityLiveRegion: "polite" }, notice) : null);
+      account ? h(React.Fragment, { key: account.id },
+        h(Text, { style: styles.label }, account.username ? "@" + account.username : "Discord account"),
+        h(View, { style: { marginTop: 8 } },
+          button("Switch accounts", manageAccounts, { disabled: opening })),
+        notice ? h(Text, { style: [styles.caption, { marginTop: 6 }], accessibilityLiveRegion: "polite" }, notice) : null,
+        h(View, { style: [styles.divider, { marginTop: 14, paddingTop: 12 }] },
+          h(BackupControls, { ...props, account })))
+        : h(Text, { style: styles.caption }, "Sign in to Discord to use account profiles."));
   };
 }

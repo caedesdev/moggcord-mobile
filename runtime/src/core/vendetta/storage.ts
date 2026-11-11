@@ -5,6 +5,7 @@ import { Platform } from "react-native";
 
 const emitterSymbol = Symbol.for("vendetta.storage.emitter");
 const syncAwaitSymbol = Symbol.for("vendetta.storage.accessor");
+const flushers = new WeakMap<Emitter, () => Promise<void>>();
 
 export function createProxy(target: any = {}): { proxy: any; emitter: Emitter; } {
     const emitter = new Emitter();
@@ -115,11 +116,22 @@ export async function createStorage<T>(backend: StorageBackend): Promise<Awaited
     const data = await backend.get();
     const { proxy, emitter } = createProxy(data);
 
-    const handler = () => backend.set(proxy);
+    let writing = Promise.resolve();
+    const handler = () => {
+        writing = writing.catch(() => {}).then(() => backend.set(proxy));
+        void writing.catch(error => console.error("[Moggcord] Could not save settings", error));
+        return writing;
+    };
+    flushers.set(emitter, () => writing.catch(handler));
     emitter.on("SET", handler);
     emitter.on("DEL", handler);
 
     return proxy;
+}
+
+export async function flushStorage(store: object) {
+    const emitter = (store as any)[emitterSymbol];
+    await flushers.get(emitter)?.();
 }
 
 export function wrapSync<T extends Promise<any>>(store: T): Awaited<T> {
