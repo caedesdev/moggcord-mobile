@@ -7,6 +7,7 @@ import { colorsPref } from "@lib/addons/themes/colors/preferences";
 import { updateBunnyColor } from "@lib/addons/themes/colors/updater";
 import { Author } from "@lib/addons/types";
 import { findAssetId } from "@lib/api/assets";
+import { usesMobileThemeColors } from "@lib/api/native/loader";
 import { settings } from "@lib/api/settings";
 import { useObservable } from "@lib/api/storage";
 import compareNames from "@lib/utils/compareNames";
@@ -23,7 +24,7 @@ export default function Themes() {
             searchKeywords={[
                 "data.name",
                 "data.description",
-                p => p.data.authors?.map((a: Author) => a.name).join(", ") ?? ""
+                p => Array.isArray(p.data.authors) ? p.data.authors.map((a: Author) => a?.name).filter(Boolean).join(", ") : ""
             ]}
             sortOptions={{
                 [t("Name (A-Z)")]: (a, b) => compareNames(a.data.name, b.data.name),
@@ -33,7 +34,7 @@ export default function Themes() {
                 label: Strings.INSTALL_THEME,
                 fetchFn: installTheme
             }}
-            items={Object.values(themes)}
+            items={Object.values(themes).filter(theme => typeof theme?.data?.name === "string")}
             safeModeHint={{
                 message: formatString("SAFE_MODE_NOTICE_THEMES", { enabled: Boolean(settings.safeMode?.currentThemeId) }),
                 footer: settings.safeMode?.currentThemeId && <Button
@@ -44,7 +45,7 @@ export default function Themes() {
                 />
             }}
             CardComponent={ThemeCard}
-            OptionsActionSheetComponent={() => {
+            OptionsActionSheetComponent={usesMobileThemeColors() ? undefined : () => {
                 useObservable([colorsPref]);
 
                 return <ActionSheet>

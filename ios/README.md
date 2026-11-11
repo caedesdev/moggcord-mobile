@@ -39,7 +39,7 @@ Report the iOS version and Discord build if the Moggcord entry is missing. Sidel
 
 Open **Moggcord Mobile → Plugins**, search for **ProfileSets** and enable it. You can also enable it from its **Community** entry. The built-in version runs on mobile. Desktop ZIPs are for the desktop client.
 
-Theme Library lets you browse custom themes on iOS. Applying one requires a loader with support for Discord's custom colors.
+Theme Library downloads mobile JSON color themes. Choose a theme and restart Discord to apply its colors. An interrupted theme startup restores the default colors on the next launch.
 
 Message Logger can retain messages received by the running app. iOS can suspend Discord in the background, and force-quitting stops its JavaScript runtime. Turning notifications on does not keep the plugin running or restore deleted messages that never reached it. The loader does not access notifications belonging to a separate Discord installation.
 

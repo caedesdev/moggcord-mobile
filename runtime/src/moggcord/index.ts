@@ -13,6 +13,7 @@ import { loadMoggcordPlugin } from "@plugins";
 import { isMoggcordPluginRunning } from "@plugins/api";
 import { manifest } from "@plugins/manifest";
 import PluginSettings from "@plugins/ui/PluginSettings";
+import { openPage } from "@plugins/ui/pages";
 import descriptions from "@plugins/descriptions.json";
 import { MoggcordIcon, moggcordIconSource } from "./BrandIcon";
 import { discordAccounts } from "./accounts";
@@ -119,6 +120,10 @@ const runtime = {
     settingsComponent(id: string) {
         const plugin = loadMoggcordPlugin(id);
         return () => createElement(PluginSettings, { plugin, onChange: markPluginChange });
+    },
+    async openThemeLibrary() {
+        const { LibraryPage } = await import("@plugins/themeLibrary");
+        openPage("Theme Library", LibraryPage);
     },
     async restartForPluginChanges() {
         if (!reloadDiscord || (pluginRestart !== "pending" && pluginRestart !== "failed")) return;

@@ -16,7 +16,7 @@ async function initializeRevenge() {
 
         const { step } = require("@core/timings");
         await step("metroCache", () => require("@metro/internals/caches").initMetroCache());
-        if ((globalThis as any).__MOGGCORD_UPDATER__?.platform === "ios") {
+        if ((globalThis as any).__vendetta_loader?.name === "Moggcord Mobile") {
             await step("themeRecovery", () => require("@lib/addons/themes/colors/recovery").recoverDiscordTheme());
         }
         const main = step("modules", () => require("."));

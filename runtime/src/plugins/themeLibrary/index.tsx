@@ -7,14 +7,14 @@
  */
 
 import { t, tx } from "@core/i18n";
+import { promptThemeRestart } from "@core/ui/settings/pages/Themes/restart";
 import { useProxy } from "@core/vendetta/storage";
-import { canApplyThemes, downloadTheme, installTheme, selectTheme, ThemeDownloadError, themes, themeUnavailableMessage } from "@lib/addons/themes";
+import { canApplyThemes, downloadTheme, getCurrentTheme, installTheme, selectTheme, ThemeDownloadError, themes, themeUnavailableMessage } from "@lib/addons/themes";
 import { findAssetId } from "@lib/api/assets";
-import { BundleUpdaterManager } from "@lib/api/native/modules";
-import { openAlert } from "@lib/ui/alerts";
+import { usesMobileThemeColors } from "@lib/api/native/loader";
 import { showToast } from "@lib/ui/toasts";
 import { safeFetch } from "@lib/utils";
-import { AlertActionButton, AlertActions, AlertModal, Button, Card, Stack, Text } from "@metro/common/components";
+import { Button, Card, Stack, Text } from "@metro/common/components";
 import { semanticColorOf } from "@ui/color";
 import { Search } from "@ui/components";
 import { createStyles } from "@ui/styles";
@@ -79,17 +79,6 @@ const plugin = definePlugin({
     SettingsComponent: Library,
 });
 
-function promptReload() {
-    openAlert("moggcord-theme-library-reload", <AlertModal
-        title={t("Restart required")}
-        content={t("Reload the app to fully apply changes")}
-        actions={<AlertActions>
-            <AlertActionButton text={t("Restart now")} variant="primary" onPress={() => BundleUpdaterManager.reload()} />
-            <AlertActionButton text={t("Later")} variant="secondary" />
-        </AlertActions>}
-    />);
-}
-
 const ThemeCard = memo(function ThemeCard({ theme, width }: { theme: LibraryTheme; width: number; }) {
     const styles = useStyles();
     const installed = useProxy(themes);
@@ -99,13 +88,15 @@ const ThemeCard = memo(function ThemeCard({ theme, width }: { theme: LibraryThem
     const applied = canApply && !!entry?.selected;
 
     const apply = async () => {
-        if (!canApplyThemes()) return;
         setBusy(true);
         try {
             if (!entry) await installTheme(theme.installUrl);
+            if (!canApplyThemes()) {
+                showToast(t("Theme downloaded"), findAssetId("CheckmarkLargeIcon"));
+                return;
+            }
             await selectTheme(themes[theme.installUrl]);
-            showToast(t("Theme applied"), findAssetId("CheckmarkLargeIcon"));
-            promptReload();
+            promptThemeRestart();
         } catch (e) {
             showToast(t("Couldn't install the theme: {error}", { error: describeError(e) }), findAssetId("CircleXIcon-primary"));
         } finally {
@@ -132,14 +123,15 @@ const ThemeCard = memo(function ThemeCard({ theme, width }: { theme: LibraryThem
             </View>
             {!!theme.description && <Text variant="text-md/medium">{t(theme.description)}</Text>}
         </Stack>
-        {canApply && <Button
-            text={applied ? t("Applied") : entry ? t("Apply") : t("Install")}
+        <Button
+            text={applied ? t(usesMobileThemeColors() ? "Selected" : "Applied")
+                : entry ? t(canApply ? "Apply" : "Downloaded") : t(canApply ? "Download and apply" : "Download")}
             variant={applied ? "secondary" : "primary"}
             size="md"
-            disabled={applied}
+            disabled={applied || !!entry && !canApply}
             loading={busy}
             onPress={apply}
-        />}
+        />
     </Card>;
 });
 
@@ -150,14 +142,15 @@ function useMarketplace() {
     useEffect(() => {
         safeFetch(MARKETPLACE, { cache: "no-store" })
             .then(r => r.json())
-            .then((items: any[]) => setList(items
-                .filter(i => typeof i?.name === "string" && /^https:\/\//.test(i?.installUrl))
+            .then((items: any[]) => setList(items.slice(0, 128)
+                .filter(i => typeof i?.name === "string" && typeof i.installUrl === "string" && /^https:\/\//.test(i.installUrl))
                 .map(i => ({
-                    name: i.name,
-                    description: i.description,
-                    authors: Array.isArray(i.authors) ? i.authors.map((a: any) => typeof a === "string" ? a : a?.name).filter(Boolean) : undefined,
+                    name: i.name.slice(0, 100),
+                    description: typeof i.description === "string" ? i.description.slice(0, 600) : undefined,
+                    authors: Array.isArray(i.authors) ? i.authors.slice(0, 12).map((a: any) => typeof a === "string" ? a : a?.name)
+                        .filter((name: unknown): name is string => typeof name === "string").map((name: string) => name.slice(0, 80)) : undefined,
                     installUrl: i.installUrl,
-                    previewUrl: typeof i.previewUrl === "string" ? i.previewUrl : typeof i.preview === "string" ? i.preview : undefined,
+                    previewUrl: [i.previewUrl, i.preview].find(url => typeof url === "string" && /^https:\/\//.test(url)),
                 }))))
             .catch(() => {
                 setFailed(true);
@@ -237,9 +230,21 @@ function Library() {
     return <Stack spacing={12}>
         <Text variant="text-sm/medium" color="text-muted">
             {canApplyThemes()
-                ? t("Themes from the community's theme marketplace and Catppuccin. Installed themes also appear in Moggcord's Themes page.")
+                ? t("Download mobile color themes. Restart Discord to apply them.")
                 : themeUnavailableMessage()}
         </Text>
+        {canApplyThemes() && getCurrentTheme() && <Button
+            text={t("Use default theme")}
+            variant="secondary"
+            onPress={async () => {
+                try {
+                    await selectTheme(null);
+                    promptThemeRestart();
+                } catch (error) {
+                    showToast(describeError(error), findAssetId("CircleXIcon-primary"));
+                }
+            }}
+        />}
         <Search placeholder={t("Search for a theme...")} onChangeText={setQuery} />
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: GAP }} onLayout={e => setWidth(e.nativeEvent.layout.width)}>
             {width > 0 && shown.map(theme => <ThemeCard key={theme.installUrl} theme={theme} width={cardWidth} />)}
@@ -250,7 +255,7 @@ function Library() {
     </Stack>;
 }
 
-function LibraryPage() {
+export function LibraryPage() {
     return <ScrollView contentContainerStyle={{ padding: 12, paddingBottom: 38 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
         <Library />
     </ScrollView>;

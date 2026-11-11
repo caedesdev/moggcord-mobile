@@ -360,6 +360,11 @@ export function createMobileScreen(React, RN, store, runtime) {
         heading("Community", "Browse uploads and save your favorites on this device."),
         h(View, { style: s.filters }, sections.map(([id, label]) =>
           button(label, () => { setCommunitySearch(""); setSection(id); }, { key: id, selected: id === section, filter: true }))),
+        section === "theme" && runtime.openThemeLibrary ? h(View, { style: [s.panel, s.padded] },
+          h(Text, { style: s.label }, "Mobile themes"),
+          h(Text, { style: [s.text, { marginVertical: 8 }] }, "Download colors for Discord on Android and iOS."),
+          button("Open Theme Library", () => void runtime.openThemeLibrary().catch(() => setNotice("Could not open Theme Library.")),
+            { primary: true, disabled: restarting })) : null,
         community ? searchBox(communitySearch, setCommunitySearch, "Search uploads", "community-search") : null,
         results.loading ? h(ActivityIndicator, { color: color.accent, accessibilityLabel: "Loading uploads" }) : null,
         results.error ? h(View, { style: [s.panel, s.padded] }, status(results.error), button("Try again", () => setRetry(value => value + 1))) : null,

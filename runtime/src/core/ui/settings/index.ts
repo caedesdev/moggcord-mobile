@@ -2,7 +2,7 @@ import MoggcordIcon from "@assets/icons/moggcord.png";
 import { Strings } from "@core/i18n";
 import { useProxy } from "@core/vendetta/storage";
 import { findAssetId } from "@lib/api/assets";
-import { isFontSupported, isThemeSupported } from "@lib/api/native/loader";
+import { isFontSupported, isThemeSupported, usesMobileThemeColors } from "@lib/api/native/loader";
 import { settings } from "@lib/api/settings";
 import { registerSection } from "@ui/settings";
 import { version } from "bunny-build-info";
@@ -32,7 +32,7 @@ export default function initSettings() {
                 title: () => Strings.THEMES,
                 icon: findAssetId("PaintPaletteIcon"),
                 render: () => import("@core/ui/settings/pages/Themes"),
-                usePredicate: () => isThemeSupported()
+                usePredicate: () => isThemeSupported() || usesMobileThemeColors()
             },
             {
                 key: "BUNNY_FONTS",

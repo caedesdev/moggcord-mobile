@@ -35,6 +35,7 @@ test("plugin changes queue independently and restart only after saved settings",
     "@plugins/api": { isMoggcordPluginRunning: id => enabled.has(id) },
     "@plugins/manifest": { manifest: [{ id: first, name: "First" }, { id: second, name: "Second" }] },
     "@plugins/ui/PluginSettings": { default: () => {} },
+    "@plugins/ui/pages": {},
     "@plugins/descriptions.json": {},
     "./BrandIcon": {},
     "./accounts": {}

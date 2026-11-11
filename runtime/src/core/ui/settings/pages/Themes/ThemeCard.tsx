@@ -4,14 +4,18 @@ import { showConfirmationAlert } from "@core/vendetta/alerts";
 import { useProxy } from "@core/vendetta/storage";
 import { canApplyThemes, fetchTheme, removeTheme, selectTheme, themes, VdThemeInfo } from "@lib/addons/themes";
 import { findAssetId } from "@lib/api/assets";
+import { usesMobileThemeColors } from "@lib/api/native/loader";
 import { clipboard } from "@metro/common";
 import { showToast } from "@ui/toasts";
 
-function selectAndApply(value: boolean, theme: VdThemeInfo) {
+import { promptThemeRestart } from "./restart";
+
+async function selectAndApply(value: boolean, theme: VdThemeInfo) {
     try {
-        selectTheme(value ? theme : null);
-    } catch (e: any) {
-        console.error("Error while selectAndApply,", e);
+        await selectTheme(value ? theme : null);
+        if (usesMobileThemeColors()) promptThemeRestart();
+    } catch (error) {
+        showToast(error instanceof Error ? error.message : t("Couldn't apply the theme."), findAssetId("XSmallIcon"));
     }
 }
 
@@ -28,7 +32,7 @@ export default function ThemeCard({ item: theme }: CardWrapper<VdThemeInfo>) {
     return (
         <AddonCard
             headerLabel={theme.data.name}
-            headerSublabel={authors?.length ? t("by {authors}", { authors: authors.map(i => i.name).join(", ") }) : ""}
+            headerSublabel={Array.isArray(authors) && authors.length ? t("by {authors}", { authors: authors.map(i => i?.name).filter(Boolean).join(", ") }) : ""}
             descriptionLabel={theme.data.description}
             toggleType={canApplyThemes() ? "radio" : undefined}
             toggleValue={() => themes[theme.id].selected}
@@ -43,6 +47,7 @@ export default function ThemeCard({ item: theme }: CardWrapper<VdThemeInfo>) {
                     onPress: () => {
                         fetchTheme(theme.id, theme.selected).then(() => {
                             showToast(Strings.THEME_REFETCH_SUCCESSFUL, findAssetId("DownloadIcon"));
+                            if (theme.selected && usesMobileThemeColors()) promptThemeRestart();
                         }).catch(() => {
                             showToast(Strings.THEME_REFETCH_FAILED, findAssetId("XSmallIcon"));
                         });
@@ -69,7 +74,7 @@ export default function ThemeCard({ item: theme }: CardWrapper<VdThemeInfo>) {
                         onConfirm: () => {
                             removeTheme(theme.id).then(wasSelected => {
                                 setRemoved(true);
-                                if (wasSelected) selectAndApply(false, theme);
+                                if (wasSelected && usesMobileThemeColors()) promptThemeRestart();
                             }).catch((e: Error) => {
                                 showToast(e.message, findAssetId("XSmallIcon"));
                             });

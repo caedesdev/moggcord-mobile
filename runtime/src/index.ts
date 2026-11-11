@@ -4,6 +4,7 @@ import { markReady, step } from "@core/timings";
 import { initVendettaObject } from "@core/vendetta/api";
 import { initPlugins, updatePlugins } from "@lib/addons/plugins";
 import { initThemes } from "@lib/addons/themes";
+import { confirmMobileTheme } from "@lib/addons/themes/colors/mobile";
 import { patchCommands } from "@lib/api/commands";
 import { injectFluxInterceptor } from "@lib/api/flux";
 import { patchJsx } from "@lib/api/react/jsx";
@@ -31,6 +32,7 @@ export default async () => {
     markReady();
     // A candidate becomes permanent only after initialization and a short successful app startup.
     setTimeout(() => {
+        confirmMobileTheme().catch(error => console.warn("[Moggcord] Theme startup confirmation failed", error));
         try { (globalThis as any).__MOGGCORD_UPDATER__?.confirm(MOGGCORD_MOBILE_VERSION); }
         catch (error) { console.warn("[Moggcord] Update startup confirmation failed", error); }
     }, 5000);

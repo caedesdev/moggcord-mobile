@@ -126,6 +126,8 @@ export function isThemeSupported() {
     return false;
 }
 
+export const usesMobileThemeColors = () => getLoaderName() === "Moggcord Mobile";
+
 export function getStoredTheme(): VdThemeInfo | null {
     if (isPyonLoader()) {
         return pyonLoaderIdentity.storedTheme;

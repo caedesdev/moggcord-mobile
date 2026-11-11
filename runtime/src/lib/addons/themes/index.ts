@@ -1,13 +1,15 @@
 import { t } from "@core/i18n";
-import { awaitStorage, createFileBackend, createMMKVBackend, createStorage, wrapSync } from "@core/vendetta/storage";
+import { awaitStorage, createFileBackend, createMMKVBackend, createStorage, flushStorage, wrapSync } from "@core/vendetta/storage";
 import { writeFile } from "@lib/api/native/fs";
-import { getStoredTheme, getThemeFilePath, isPyonLoader, isThemeSupported } from "@lib/api/native/loader";
+import { getStoredTheme, getThemeFilePath, isPyonLoader, isThemeSupported, usesMobileThemeColors } from "@lib/api/native/loader";
 import { settings } from "@lib/api/settings";
 import { awaitStorage as newAwaitStorage } from "@lib/api/storage";
 import { isAddonUrl } from "@lib/utils/addonUrl";
 import { Platform } from "react-native";
 
 import initColors from "./colors";
+import { initMobileColors, saveMobileTheme } from "./colors/mobile";
+import { MAX_THEME_LENGTH, mobileColorManifest } from "./colors/mobile-manifest";
 import { applyAndroidAlphaKeys, normalizeToHex } from "./colors/parser";
 import { colorsPref } from "./colors/preferences";
 import { VendettaThemeManifest } from "./colors/types";
@@ -32,6 +34,7 @@ export const themeUnavailableMessage = () => t("Custom themes are unavailable wi
  * @internal
  */
 export async function writeThemeToNative(theme: VdThemeInfo | {}) {
+    if (usesMobileThemeColors()) return;
     if (typeof theme !== "object") throw new Error("Theme must be an object");
 
     // Save the current theme as current-theme.json. When supported by loader,
@@ -93,7 +96,19 @@ async function fetchOnce(url: string, timeout: number) {
     const abort = new AbortController();
     const timer = setTimeout(() => abort.abort(), timeout);
     try {
-        return await fetch(url, { cache: "no-store", signal: abort.signal });
+        const response = await fetch(url, { cache: "no-store", signal: abort.signal, credentials: "omit" });
+        if (!response.ok) return { response, text: "" };
+        if (response.url && !isAddonUrl(response.url)) {
+            throw new ThemeDownloadError("invalid", t("Themes can only be installed from an https:// link."));
+        }
+        if (Number(response.headers?.get("content-length")) > MAX_THEME_LENGTH) {
+            throw new ThemeDownloadError("invalid", t("The theme file is too large."));
+        }
+        const text = await response.text();
+        if (text.length > MAX_THEME_LENGTH) {
+            throw new ThemeDownloadError("invalid", t("The theme file is too large."));
+        }
+        return { response, text };
     } finally {
         clearTimeout(timer);
     }
@@ -103,18 +118,21 @@ async function fetchOnce(url: string, timeout: number) {
 export async function downloadTheme(url: string): Promise<VendettaThemeManifest> {
     const source = rawFileUrl(url);
     if (!isAddonUrl(source)) throw new ThemeDownloadError("invalid", t("Themes can only be installed from an https:// link."));
-    let res: Response;
+    let download: Awaited<ReturnType<typeof fetchOnce>>;
     try {
-        res = await fetchOnce(source, 20000);
-    } catch {
+        download = await fetchOnce(source, 20000);
+    } catch (error) {
+        if (error instanceof ThemeDownloadError) throw error;
         // Once more, for a connection that dropped on the way
         try {
-            res = await fetchOnce(source, 20000);
-        } catch {
+            download = await fetchOnce(source, 20000);
+        } catch (error) {
+            if (error instanceof ThemeDownloadError) throw error;
             throw new ThemeDownloadError("unreachable", t("Couldn't reach {host}. Check your connection; if it keeps happening, the site the theme is on may be down.", { host: hostOf(source) }));
         }
     }
 
+    const { response: res, text } = download;
     if (res.status === 404 || res.status === 410) {
         throw new ThemeDownloadError("gone", t("The theme isn't at this link anymore ({status}). Its author may have moved or deleted it.", { status: res.status }));
     }
@@ -123,12 +141,13 @@ export async function downloadTheme(url: string): Promise<VendettaThemeManifest>
     let themeJSON: any;
     try {
         // trimStart also drops the byte order mark some Windows editors write, which JSON.parse doesn't accept
-        themeJSON = JSON.parse((await res.text()).trimStart());
+        themeJSON = JSON.parse(text.trimStart());
     } catch {
         throw new ThemeDownloadError("invalid", t("This link doesn't lead to a theme file."));
     }
-    if (!validateTheme(themeJSON)) throw new ThemeDownloadError("invalid", t("This file isn't a theme Moggcord can use."));
-    return themeJSON;
+    const data = usesMobileThemeColors() ? mobileColorManifest(themeJSON) : validateTheme(themeJSON) ? themeJSON : null;
+    if (!data) throw new ThemeDownloadError("invalid", t("This file isn't a theme Moggcord can use."));
+    return data;
 }
 
 export async function fetchTheme(url: string, selected = false) {
@@ -137,8 +156,14 @@ export async function fetchTheme(url: string, selected = false) {
     const theme = {
         id: url,
         selected: false,
-        data: processData(themeJSON),
+        data: usesMobileThemeColors() ? themeJSON : processData(themeJSON),
     };
+    if (usesMobileThemeColors()) {
+        theme.selected = themes[url]?.selected === true;
+        themes[url] = theme;
+        await flushStorage(themes);
+        return;
+    }
     if (selected && canApplyThemes()) await selectTheme(theme);
     themes[url] = theme;
 }
@@ -150,11 +175,17 @@ export async function installTheme(url: string) {
 
 export function selectTheme(theme: VdThemeInfo | null, write = true) {
     if (theme && !canApplyThemes()) throw new Error(themeUnavailableMessage());
+    if (usesMobileThemeColors()) {
+        if (theme && (!Object.prototype.hasOwnProperty.call(themes, theme.id) || !mobileColorManifest(themes[theme.id]?.data))) {
+            throw new Error(t("This file isn't a theme Moggcord can use."));
+        }
+        return flushStorage(themes).then(() => saveMobileTheme(theme?.id ?? null)).then(() => {
+            updateSelectedTheme(theme?.id ?? null);
+        });
+    }
     if (canApplyThemes() && (theme || write)) updateBunnyColor(theme?.data ?? null, { update: true });
     if (theme) theme.selected = true;
-    Object.keys(themes).forEach(
-        k => themes[k].selected = themes[k].id === theme?.id
-    );
+    updateSelectedTheme(theme?.id ?? null);
 
     if (theme == null && write) {
         return writeThemeToNative({});
@@ -163,12 +194,21 @@ export function selectTheme(theme: VdThemeInfo | null, write = true) {
     }
 }
 
+function updateSelectedTheme(id: string | null) {
+    for (const theme of Object.values(themes)) {
+        const selected = theme?.id === id;
+        if (theme && theme.selected !== selected) theme.selected = selected;
+    }
+}
+
 export async function removeTheme(id: string) {
     const theme = themes[id];
-    if (theme.selected) await selectTheme(null);
+    const wasSelected = theme.selected;
+    if (wasSelected) await selectTheme(null);
     delete themes[id];
+    if (usesMobileThemeColors()) await flushStorage(themes);
 
-    return theme.selected;
+    return wasSelected;
 }
 
 export async function updateThemes() {
@@ -178,7 +218,7 @@ export async function updateThemes() {
 }
 
 export function getCurrentTheme() {
-    return Object.values(themes).find(t => t.selected) ?? null;
+    return Object.values(themes).find(t => t?.selected) ?? null;
 }
 
 /**
@@ -192,9 +232,19 @@ export function getThemeFromLoader(): VdThemeInfo | null {
  * @internal
  */
 export async function initThemes() {
-    if (!isThemeSupported()) return;
-
     try {
+        if (usesMobileThemeColors()) {
+            await awaitStorage(themes, settings);
+            const colors = await initMobileColors(id => Object.prototype.hasOwnProperty.call(themes, id) ? themes[id]?.data : null);
+            if (!colors) return;
+            updateSelectedTheme(colors.selected);
+            colorPatchesReady = true;
+            return () => {
+                colorPatchesReady = false;
+                colors.dispose();
+            };
+        }
+        if (!isThemeSupported()) return;
         if (isPyonLoader()) {
             writeFile("../vendetta_theme.json", "null");
         }

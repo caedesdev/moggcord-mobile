@@ -12,6 +12,7 @@ Moggcord Mobile is a separate project with a shared React Native payload. Open D
 - **Native user actions.** 21 user-related plugins share entries in profiles, the profile's three-dot menu and message menus. Only enabled plugins contribute actions. PermissionsViewer shows server roles and permission flags without truncating high bits.
 - **In-app iOS updates.** In Moggcord settings, choose **Check for updates**, then **Update and restart**. Requires the 0.4.0 loader once; subsequent compatible plugin and UI updates do not require another IPA. Discord and native-loader changes still require a signed app update.
 - **Community library.** Search Moggcord's public plugins and themes and save favorites on your device.
+- **Mobile themes.** Open **Community → Themes → Open Theme Library** to download and apply mobile JSON color themes on Android and iOS. Restart Discord to apply a selection. Use **Use default theme** to reset the colors.
 - **Color profiles.** Switch between Midnight, Cobalt and Dusk for the Moggcord panel.
 - **Backup & Restore.** Export your color profile, favorites and plugin switches as JSON in Settings.
 - **Account profiles.** In Settings, save, share and restore those preferences for the signed-in account. Switch accounts opens Discord's native picker when enabled for the current Discord session.
