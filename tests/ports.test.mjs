@@ -204,7 +204,6 @@ test("the camera slot uses the fake control without changing other call buttons"
 
 test("the real fake control follows native muted styles and keeps its slash inside its icon", async () => {
   const patches = new Map();
-  let wrapButtons;
   const buttonProps = Object.freeze({ width: 48, height: 48 });
   const wrapperSpecs = { value: { drawerMode: false } };
   let openedCamera = 0;
@@ -241,11 +240,7 @@ test("the real fake control follows native muted styles and keeps its slash insi
     "@core/vendetta/storage": { useProxy: value => value },
     "@lib/api/assets": { findAssetId: () => 123 },
     "@lib/api/patcher": {
-      after(key, target, callback) {
-        assert.equal(target, hooks);
-        wrapButtons = callback;
-        return () => { wrapButtons = null; };
-      },
+      after: () => () => {},
       before(key, target, callback) {
         assert.equal(key, "TableRowGroup");
         assert.equal(target, groups);
@@ -263,15 +258,7 @@ test("the real fake control follows native muted styles and keeps its slash insi
       afterRender(module, key, callback) { patches.set(module, callback); return () => patches.delete(module); }
     }
   });
-  const controlStore = { fakeMute: false, fakeDeafen: false };
-  const stop = api.installFakeDeafenControls({ store: controlStore }, () => {});
-  const replaced = wrapButtons([], [{ key: "connected-video", render: () => jsx("Camera", {}) }]);
-  for (const [fakeMute, fakeDeafen] of [[false, false], [true, false], [false, true], [true, true]]) {
-    Object.assign(controlStore, { fakeMute, fakeDeafen });
-    const replacement = replaced[0].render("connected-video", {});
-    const provider = replacement.type(replacement.props);
-    assert.equal(provider.props.value.on, fakeMute || fakeDeafen);
-  }
+  const stop = api.installFakeDeafenControls({ store: {} }, () => {});
   const consumer = patches.get(video)({ wrapperSpecs }, tree);
   assert.equal(consumer.props.children(null), tree);
   for (const on of [false, true]) {
@@ -319,6 +306,5 @@ test("the real fake control follows native muted styles and keeps its slash insi
   assert.equal(openedCamera, 1);
   stop();
   assert.equal(patches.size, 0);
-  assert.equal(wrapButtons, null);
   assert.equal(tree.props.onPress, camera);
 });

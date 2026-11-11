@@ -22,8 +22,6 @@ Read about [signed runtime updates and recovery](docs/in-app-updates.md). Permis
 
 Message Logger keeps received deleted messages in chat, marks them red and shows edit history. Logs stay in memory. Logging needs Discord to be running and receiving messages; mobile operating systems can suspend it in the background. Closing the app stops logging, and a notification cannot recover content the app never received. Call Timer adds a call-duration overlay. Fake Deafen uses a larger ghost in the camera slot, with Discord's native muted colors and a bounded slash. The camera remains available in the expanded controls. Moggcord's settings entry uses its original full-color logo.
 
-Fake Deafen starts inactive. The ghost can clear either fake voice mode; fake mute and fake deafen are mutually exclusive. Leaving the call or restarting clears the fake flags, and disabling the plugin reports the current native microphone/deafen state. Discord's microphone and deafen controls keep their normal behavior.
-
 ## Platforms
 
 | Platform | Development artifact | Setup |
