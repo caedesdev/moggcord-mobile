@@ -83,6 +83,10 @@ public final class LauncherActivity extends Activity {
     private void refresh() {
         PackageInfo discord = installedPackage(DiscordPackage.ORIGINAL);
         PackageInfo moggcord = installedPackage(DiscordPackage.MOGGCORD);
+        if (moggcord == null && InstallProgress.clearCompleted()) {
+            message = 0;
+            detail = null;
+        }
         TextView status = findViewById(R.id.discord_status);
         status.setText(discord == null ? getString(R.string.discord_missing) :
             discord.versionName == null || discord.versionName.isBlank() ? getString(R.string.discord_found) :
@@ -90,6 +94,8 @@ public final class LauncherActivity extends Activity {
 
         Button install = findViewById(R.id.discord_action);
         install.setEnabled(!installing);
+        install.setBackgroundTintList(getColorStateList(discord == null
+            ? R.color.launcher_action_open : R.color.launcher_action_install));
         install.setVisibility(discord == null && moggcord != null ? View.GONE : View.VISIBLE);
         install.setText(installing ? R.string.installing : discord == null ? R.string.get_discord :
             moggcord == null ? R.string.install_in_discord : R.string.reinstall_moggcord);
@@ -116,6 +122,12 @@ public final class LauncherActivity extends Activity {
             installStatus.setText(detail == null || detail.isBlank() ? getString(message) :
                 getString(message) + "\n" + detail);
         }
+        Button uninstall = findViewById(R.id.uninstall_moggcord);
+        uninstall.setVisibility(moggcord == null ? View.GONE : View.VISIBLE);
+        uninstall.setEnabled(!installing);
+        uninstall.setOnClickListener(view -> open(new Intent(Intent.ACTION_DELETE,
+            Uri.fromParts("package", DiscordPackage.MOGGCORD, null)), R.string.uninstall_moggcord));
+
         if (confirmation != null) {
             Intent next = confirmation;
             confirmation = null;

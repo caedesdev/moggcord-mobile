@@ -20,4 +20,5 @@
     <string name="install_failed">Moggcord could not be installed.</string>
     <string name="confirmation_unavailable">Android could not open the installation dialog. Try again.</string>
     <string name="could_not_open">Could not open %1$s.</string>
+    <string name="uninstall_moggcord">Uninstall Moggcord</string>
 </resources>

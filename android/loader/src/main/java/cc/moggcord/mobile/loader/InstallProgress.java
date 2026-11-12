@@ -120,6 +120,14 @@ final class InstallProgress {
     static boolean isRunning() { return running; }
     static int percent() { return percent; }
 
+    static boolean clearCompleted() {
+        if (phase != R.string.install_phase_complete) return false;
+        phase = 0;
+        lines.clear();
+        if (listener != null) listener.run();
+        return true;
+    }
+
     static String phaseText(Context context) {
         return formatPhase(context, phase, file, files);
     }
