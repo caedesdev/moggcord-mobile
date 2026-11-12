@@ -31,7 +31,7 @@ Message Logger keeps received deleted messages in chat, marks them red and shows
 | Android 9+ | Launcher APK with the Moggcord module embedded | [Android guide](android/README.md) |
 | iOS and iPadOS 16+ | arm64 dylib with the same embedded bundle | [iOS guide](ios/README.md) |
 
-The Android launcher guides setup for an existing Discord installation and a compatible module environment. The iOS dylib needs to be added to a compatible Discord app and signed for the device. Builds contain Moggcord code and its embedded assets.
+The Android launcher uses the installed Discord app to prepare a separate Moggcord copy and opens Android's installation prompt. The iOS dylib needs to be added to a compatible Discord app and signed for the device. Builds contain Moggcord code and its embedded assets.
 
 ## Build
 

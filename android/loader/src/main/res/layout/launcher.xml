@@ -34,21 +34,25 @@
         <LinearLayout style="@style/LauncherCard">
             <TextView style="@style/LauncherHeading" android:text="@string/discord" />
             <TextView android:id="@+id/discord_status" style="@style/LauncherCaption" />
+            <Button
+                android:id="@+id/open_moggcord"
+                style="@style/LauncherButton"
+                android:text="@string/open_moggcord"
+                android:visibility="gone" />
             <Button android:id="@+id/discord_action" style="@style/LauncherButton" />
-        </LinearLayout>
-
-        <LinearLayout style="@style/LauncherCard">
-            <TextView style="@style/LauncherHeading" android:text="@string/setup_title" />
-            <TextView style="@style/LauncherCaption" android:text="@string/setup_description" />
-            <Button android:id="@+id/setup_action" style="@style/LauncherButton" android:text="@string/setup_action" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:id="@+id/previous_loader"
-            style="@style/LauncherCard"
-            android:visibility="gone">
-            <TextView style="@style/LauncherHeading" android:text="@string/previous_loader" />
-            <TextView style="@style/LauncherCaption" android:text="@string/previous_loader_description" />
+            <ProgressBar
+                android:id="@+id/install_progress"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:indeterminate="true"
+                android:visibility="gone" />
+            <TextView
+                android:id="@+id/install_status"
+                style="@style/LauncherCaption"
+                android:accessibilityLiveRegion="polite"
+                android:layout_marginTop="12dp"
+                android:visibility="gone" />
         </LinearLayout>
     </LinearLayout>
 </ScrollView>
