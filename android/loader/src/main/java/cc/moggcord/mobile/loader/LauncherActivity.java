@@ -90,6 +90,8 @@ public final class LauncherActivity extends Activity {
 
         Button install = findViewById(R.id.discord_action);
         install.setEnabled(!installing);
+        install.setBackgroundTintList(getColorStateList(discord == null
+            ? R.color.launcher_action_open : R.color.launcher_action_install));
         install.setVisibility(discord == null && moggcord != null ? View.GONE : View.VISIBLE);
         install.setText(installing ? R.string.installing : discord == null ? R.string.get_discord :
             moggcord == null ? R.string.install_in_discord : R.string.reinstall_moggcord);
