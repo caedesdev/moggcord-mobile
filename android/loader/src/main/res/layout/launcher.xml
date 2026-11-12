@@ -39,6 +39,11 @@
                 style="@style/LauncherButton"
                 android:text="@string/open_moggcord"
                 android:visibility="gone" />
+            <Button
+                android:id="@+id/test_without_moggcord"
+                style="@style/LauncherButton"
+                android:text="@string/test_without_moggcord"
+                android:visibility="gone" />
             <Button android:id="@+id/discord_action" style="@style/LauncherButton" />
             <ProgressBar
                 android:id="@+id/install_progress"

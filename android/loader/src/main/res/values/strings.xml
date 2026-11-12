@@ -10,12 +10,15 @@
     <string name="install_in_discord">Install in Discord</string>
     <string name="reinstall_moggcord">Reinstall Moggcord</string>
     <string name="open_moggcord">Open Moggcord</string>
+    <string name="test_without_moggcord">Test Discord without Moggcord</string>
     <string name="installing">Installing…</string>
     <string name="preparing">Preparing Moggcord from your installed Discord app. Keep this screen open.</string>
     <string name="confirm_install">Confirm the installation in the Android dialog.</string>
     <string name="install_permission">Android installation settings</string>
     <string name="install_permission_required">Allow installs from Moggcord in Android settings to continue.</string>
     <string name="install_success">Moggcord Discord installed. Open it and sign in to get started.</string>
+    <string name="test_install_success">The Discord copy was installed without the Moggcord add-on. Choose Open Moggcord to test it. Choose Reinstall Moggcord to restore the add-on.</string>
+    <string name="test_mode_device">Android %1$s · %2$d KiB memory pages</string>
     <string name="install_canceled">Installation canceled.</string>
     <string name="install_failed">Moggcord could not be installed.</string>
     <string name="confirmation_unavailable">Android could not open the installation dialog. Try again.</string>

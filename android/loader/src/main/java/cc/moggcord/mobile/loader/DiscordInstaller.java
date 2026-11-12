@@ -45,10 +45,11 @@ import java.util.stream.Collectors;
 
 final class DiscordInstaller {
     static final String RESULT = "cc.moggcord.mobile.loader.INSTALL_RESULT";
+    static final String TEST_MODE = "cc.moggcord.mobile.loader.TEST_MODE";
     private static final String TAG = "MoggcordInstaller";
     private static final String KEY_ALIAS = "moggcord-discord";
 
-    static void install(Context context, ApplicationInfo discord, Runnable awaitingConfirmation) throws Exception {
+    static void install(Context context, ApplicationInfo discord, boolean testMode, Runnable awaitingConfirmation) throws Exception {
         if (!DiscordPackage.ORIGINAL.equals(discord.packageName)) throw new IOException("Discord is required.");
         Path work = Files.createTempDirectory(context.getCacheDir().toPath(), "discord-install-");
         try {
@@ -63,24 +64,24 @@ final class DiscordInstaller {
                 }
             }
 
+            PatchSpec.Builder patch = PatchSpec.builder()
+                .apks(inputs)
+                .outputDir(work.resolve("install").toFile())
+                .sigBypassLevel(0)
+                .manifestOverrides(ManifestOverrides.builder().label("Moggcord Discord").build())
+                .keystore(KeystoreSpec.of(keyFile, password, KEY_ALIAS, password));
+            if (!testMode) patch.module(new File(context.getApplicationInfo().sourceDir));
             List<File> outputs = new ApkPatcher(new Logger() {
                 @Override public void d(String message) { Log.d(TAG, message); }
                 @Override public void i(String message) { Log.i(TAG, message); }
                 @Override public void e(String message) { Log.e(TAG, message); }
-            }, PatchSpec.builder()
-                .apks(inputs)
-                .module(new File(context.getApplicationInfo().sourceDir))
-                .outputDir(work.resolve("install").toFile())
-                .sigBypassLevel(0)
-                .manifestOverrides(ManifestOverrides.builder().label("Moggcord Discord").build())
-                .keystore(KeystoreSpec.of(keyFile, password, KEY_ALIAS, password))
-                .build()).patch();
+            }, patch.build()).patch();
 
             PackageInfo result = context.getPackageManager().getPackageArchiveInfo(outputs.get(0).getPath(), 0);
             if (result == null || !DiscordPackage.MOGGCORD.equals(result.packageName)) {
                 throw new IOException("The prepared APK has an unexpected package name.");
             }
-            commit(context, outputs, awaitingConfirmation);
+            commit(context, outputs, testMode, awaitingConfirmation);
         } finally {
             try (var files = Files.walk(work)) {
                 for (Path path : files.sorted(Comparator.reverseOrder()).collect(Collectors.toList())) {
@@ -98,7 +99,7 @@ final class DiscordInstaller {
         return copy;
     }
 
-    private static void commit(Context context, List<File> apks, Runnable awaitingConfirmation) throws IOException {
+    private static void commit(Context context, List<File> apks, boolean testMode, Runnable awaitingConfirmation) throws IOException {
         PackageInstaller installer = context.getPackageManager().getPackageInstaller();
         PackageInstaller.SessionParams params = new PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL);
         params.setAppPackageName(DiscordPackage.MOGGCORD);
@@ -114,7 +115,8 @@ final class DiscordInstaller {
                 }
             }
             Intent status = new Intent(context, LauncherActivity.InstallResultReceiver.class).setAction(RESULT)
-                .setData(Uri.fromParts("moggcord-install", Integer.toString(id), null));
+                .setData(Uri.fromParts("moggcord-install", Integer.toString(id), null))
+                .putExtra(TEST_MODE, testMode);
             int flags = PendingIntent.FLAG_UPDATE_CURRENT;
             if (Build.VERSION.SDK_INT >= 31) flags |= PendingIntent.FLAG_MUTABLE;
             PendingIntent receiver = PendingIntent.getBroadcast(context, id, status, flags);
