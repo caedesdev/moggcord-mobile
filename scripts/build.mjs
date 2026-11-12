@@ -15,7 +15,7 @@ await build({
   absWorkingDir: root, entryPoints: ["runtime/bootstrap.ts"], outfile: output,
   tsconfig: "runtime/tsconfig.json", bundle: true, format: "iife", target: "es2020",
   supported: { "const-and-let": false }, minify: true, charset: "ascii",
-  loader: { ".png": "dataurl", ".html": "text" },
+  loader: { ".jpg": "dataurl", ".png": "dataurl", ".html": "text" },
   define: { window: "globalThis", __DEV__: "false", __MOGGCORD_TEST__: "false",
     __BUILDS_BRANCH__: '"main"', MOGGCORD_MOBILE_VERSION: JSON.stringify(version) },
   inject: ["runtime/shims/asyncIteratorSymbol.js", "runtime/shims/promiseAllSettled.js"],

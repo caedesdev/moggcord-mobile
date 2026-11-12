@@ -202,6 +202,71 @@ test("the camera slot uses the fake control without changing other call buttons"
   assert.equal(camera.render(), "camera");
 });
 
+for (const socketExport of ["socket", "default"]) {
+  test(`Fake Deafen refreshes an already connected call through the ${socketExport} socket export`, async () => {
+    let channel = "existing-call", muted = true;
+    const updates = [], cleanups = [];
+    class GatewaySocket {
+      voiceStateUpdate(state) { updates.push(state); }
+    }
+    const connection = new GatewaySocket();
+    const stores = {
+      SelectedChannelStore: { getVoiceChannelId: () => channel },
+      ChannelStore: { getChannel: id => ({ guild_id: id + "-server" }) },
+      MediaEngineStore: { isSelfMute: () => muted, isSelfDeaf: () => false, isVideoEnabled: () => false }
+    };
+    let toggle, changed;
+    const store = { fakeDeafen: false, fakeMute: false, button: "none" };
+    const plugin = await port("fakeMute", {
+      "@core/i18n": { t: text => text, tx: text => text },
+      "react/jsx-runtime": {},
+      "@core/vendetta/storage": {},
+      "@lib/api/assets": { findAssetId() {} },
+      "@lib/api/commands": { registerCommand: () => () => {} },
+      "@lib/api/commands/types": { ApplicationCommandOptionType: { BOOLEAN: 5 } },
+      "@lib/api/patcher": { before(key, target, patch) {
+        const original = target[key];
+        target[key] = function (...args) { return original.apply(this, patch.call(this, args) ?? args); };
+        return () => { target[key] = original; };
+      } },
+      "@lib/ui/toasts": { showToast() {} },
+      "@metro/common": {},
+      "../api": {
+        definePlugin: definition => ({ ...definition, store }),
+        onSettingChange(_store, callback) { changed = callback; return () => {}; }
+      },
+      "../common": {
+        addChatButton: () => () => {},
+        getStore: name => stores[name],
+        moduleAt: path => path.includes("Singleton") ? { [socketExport]: connection } : { default: GatewaySocket }
+      },
+      "../silentTyping": {},
+      "./controls": { installFakeDeafenControls(_plugin, callback) { toggle = callback; return () => {}; } }
+    });
+    plugin.start({ store, cleanup: (...callbacks) => cleanups.push(...callbacks) });
+    toggle();
+    changed("fakeDeafen");
+    assert.equal(updates.length, 1);
+    assert.equal(updates[0].channelId, channel);
+    assert.equal(updates[0].selfMute, true);
+    assert.equal(updates[0].selfDeaf, true);
+    toggle();
+    changed("fakeDeafen");
+    assert.equal(updates[1].selfDeaf, false);
+    muted = false;
+    channel = "other-call";
+    toggle();
+    changed("fakeDeafen");
+    assert.equal(updates[2].channelId, channel);
+    assert.equal(updates[2].selfMute, false);
+    assert.equal(updates[2].selfDeaf, false);
+    channel = undefined;
+    changed("fakeDeafen");
+    cleanups.forEach(stop => stop());
+    assert.equal(updates.length, 3);
+  });
+}
+
 test("the real fake control follows native muted styles and keeps its slash inside its icon", async () => {
   const patches = new Map();
   const buttonProps = Object.freeze({ width: 48, height: 48 });

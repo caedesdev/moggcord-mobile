@@ -27,6 +27,7 @@ interface VoiceStatePayload {
 }
 
 const GATEWAY_SOCKET = "modules/gateway/GatewaySocket.tsx";
+const GATEWAY_SINGLETON = "modules/gateway/GatewaySocketSingleton.tsx";
 const icon = (name: string) => () => moduleAt(`design/components/Icon/native/redesign/generated/${name}.tsx`)?.[name];
 const MicrophoneIcon = icon("MicrophoneIcon");
 const HeadphonesIcon = icon("HeadphonesIcon");
@@ -142,24 +143,32 @@ function booleanOption() {
 }
 
 /** The voice state from Discord's stores, for a call that started before the plugin did */
-function currentState(): VoiceStatePayload | null {
-    const channelId = getStore("SelectedChannelStore")?.getVoiceChannelId?.();
+function currentState(channelId?: string): VoiceStatePayload | null {
     if (!channelId) return null;
     const media = getStore("MediaEngineStore");
+    const selfMute = media?.isSelfMute?.();
+    const selfDeaf = media?.isSelfDeaf?.();
+    if (typeof selfMute !== "boolean" || typeof selfDeaf !== "boolean") return null;
     return {
         guildId: getStore("ChannelStore")?.getChannel?.(channelId)?.guild_id ?? null,
         channelId,
-        selfMute: !!media?.isSelfMute?.(),
-        selfDeaf: !!media?.isSelfDeaf?.(),
+        selfMute,
+        selfDeaf,
         selfVideo: !!media?.isVideoEnabled?.(),
     };
 }
 
 /** Sends the voice state again, so a change applies to the call you're in right away */
 function resend(logger?: { warn(...a: any[]): void; }) {
-    const target = socket ?? moduleAt("modules/gateway/GatewaySocketSingleton.tsx")?.default;
-    const state = lastState?.channelId ? lastState : currentState();
-    if (!target?.voiceStateUpdate || !state?.channelId) return;
+    const singleton = moduleAt(GATEWAY_SINGLETON);
+    const target = [singleton?.socket, singleton?.default, socket]
+        .find(candidate => typeof candidate?.voiceStateUpdate === "function");
+    const selected = getStore("SelectedChannelStore");
+    const channelId = selected?.getVoiceChannelId?.();
+    if (typeof selected?.getVoiceChannelId === "function" && !channelId) return;
+    const state = lastState?.channelId && (!channelId || lastState.channelId === channelId)
+        ? lastState : currentState(channelId);
+    if (!target || !state?.channelId) return;
     try {
         target.voiceStateUpdate({ ...state });
     } catch (e) {

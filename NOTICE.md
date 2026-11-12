@@ -18,5 +18,10 @@ Team Vendetta, pylixonly and Team Revenge. Marked plugin files retain the
 copyright of rootpoi and contributors and their GPL-3.0-or-later notices.
 Message Logger also credits PalmDevs' GPL-3.0 message-logger approach.
 
+Theme Library thumbnails are derived from the publicly published previews from
+Catppuccin, the mobile theme marketplace and the individual theme authors.
+The [thumbnail source list](runtime/src/plugins/themeLibrary/bundled-previews.ts)
+links to each original, and the library credits each theme's authors.
+
 Moggcord changes include branding, settings integration, bundled plugin
 management, the compact voice control, update behavior and storage integration.

@@ -20,12 +20,14 @@ import { semanticColorOf } from "@ui/color";
 import { Search } from "@ui/components";
 import { createStyles } from "@ui/styles";
 import { memo, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Image, ScrollView, Text as NativeText, View } from "react-native";
+import { Image, ScrollView, Text as NativeText, View } from "react-native";
 
 import { definePlugin } from "../api";
 import { addSettingsPage, addToolboxAction } from "../common";
 import { describeError } from "../hooks";
 import { openPage } from "../ui/pages";
+import bundledCatalog from "./bundled-catalog.json";
+import { bundledPreviews } from "./bundled-previews";
 import { previewImageUrl, themePreviewPalette, type ThemePreviewPalette } from "./preview";
 
 const useStyles = createStyles({
@@ -92,9 +94,12 @@ const plugin = definePlugin({
     SettingsComponent: Library,
 });
 
-function ThemePreview({ imageUrl, palette }: { imageUrl?: string; palette?: ThemePreviewPalette }) {
+function ThemePreview({ imageUrl, localImage, palette }: {
+    imageUrl?: string; localImage?: string; palette?: ThemePreviewPalette;
+}) {
     const styles = useStyles();
-    const [failed, setFailed] = useState<string>();
+    const [failed, setFailed] = useState<string[]>([]);
+    const image = [localImage, imageUrl].find(uri => uri && !failed.includes(uri));
     return <View style={[styles.preview, !palette && styles.noPreview]} accessible accessibilityLabel={t("Theme preview")}>
         {palette ? <View style={[styles.palette, { backgroundColor: palette.chat }]}>
             <View style={[styles.rail, { backgroundColor: palette.sidebar }]}>
@@ -123,12 +128,13 @@ function ThemePreview({ imageUrl, palette }: { imageUrl?: string; palette?: Them
                 </View>
             </View>
         </View> : <Image source={findAssetId("PaintPaletteIcon")!} style={styles.noPreviewIcon} />}
-        {imageUrl && imageUrl !== failed && <Image
-            source={{ uri: imageUrl }}
+        {image && <Image
+            source={image === localImage ? { uri: image, width: 480, height: 270 } : { uri: image }}
             style={styles.previewImage}
             resizeMode="cover"
-            resizeMethod="resize"
-            onError={() => setFailed(imageUrl)}
+            resizeMethod={image === localImage ? "auto" : "resize"}
+            fadeDuration={0}
+            onError={() => setFailed(previous => [...previous, image])}
         />}
     </View>;
 }
@@ -140,6 +146,7 @@ const ThemeCard = memo(function ThemeCard({ theme, width, palette }: {
     const [busy, setBusy] = useState(false);
     const entry = installed[theme.installUrl];
     const savedPalette = useMemo(() => entry?.data ? themePreviewPalette(entry.data) : undefined, [entry?.data]);
+    const preview = bundledPreviews.get(theme.installUrl);
     const canApply = canApplyThemes();
     const applied = canApply && !!entry?.selected;
 
@@ -162,7 +169,7 @@ const ThemeCard = memo(function ThemeCard({ theme, width, palette }: {
 
     return <Card style={{ width, justifyContent: "space-between", gap: 10 }}>
         <Stack spacing={10}>
-            <ThemePreview imageUrl={theme.previewUrl} palette={savedPalette ?? palette} />
+            <ThemePreview imageUrl={theme.previewUrl} localImage={preview?.image} palette={savedPalette ?? palette ?? preview?.palette} />
             <View>
                 <Text variant="heading-md/semibold">{theme.name}</Text>
                 {!!theme.authors?.length && <Text variant="text-sm/medium" color="text-muted">
@@ -183,30 +190,34 @@ const ThemeCard = memo(function ThemeCard({ theme, width, palette }: {
     </Card>;
 });
 
+function catalogEntries(items: unknown): LibraryTheme[] {
+    if (!Array.isArray(items)) return [];
+    return items.slice(0, 128)
+        .filter(i => typeof i?.name === "string" && typeof i.installUrl === "string" && /^https:\/\//.test(i.installUrl))
+        .map(i => ({
+            name: i.name.slice(0, 100),
+            description: typeof i.description === "string" ? i.description.slice(0, 600) : undefined,
+            authors: Array.isArray(i.authors) ? i.authors.slice(0, 12).map((a: any) => typeof a === "string" ? a : a?.name)
+                .filter((name: unknown): name is string => typeof name === "string").map((name: string) => name.slice(0, 80)) : undefined,
+            installUrl: i.installUrl,
+            previewUrl: previewImageUrl(i.previewUrl, i.preview, i.imageUrl, marketplacePreview(i.name)),
+        }));
+}
+
 function useMarketplace() {
-    const [list, setList] = useState<LibraryTheme[] | null>(null);
-    const [failed, setFailed] = useState(false);
+    const [list, setList] = useState(() => catalogEntries(bundledCatalog));
 
     useEffect(() => {
-        safeFetch(MARKETPLACE, { cache: "no-store" })
+        let live = true;
+        safeFetch(MARKETPLACE, { cache: "no-store", credentials: "omit" })
             .then(r => r.json())
-            .then((items: any[]) => setList(items.slice(0, 128)
-                .filter(i => typeof i?.name === "string" && typeof i.installUrl === "string" && /^https:\/\//.test(i.installUrl))
-                .map(i => ({
-                    name: i.name.slice(0, 100),
-                    description: typeof i.description === "string" ? i.description.slice(0, 600) : undefined,
-                    authors: Array.isArray(i.authors) ? i.authors.slice(0, 12).map((a: any) => typeof a === "string" ? a : a?.name)
-                        .filter((name: unknown): name is string => typeof name === "string").map((name: string) => name.slice(0, 80)) : undefined,
-                    installUrl: i.installUrl,
-                    previewUrl: previewImageUrl(i.previewUrl, i.preview, i.imageUrl, marketplacePreview(i.name)),
-                }))))
-            .catch(() => {
-                setFailed(true);
-                setList([]);
-            });
+            .then(catalogEntries)
+            .then(entries => { if (live && entries.length) setList(entries); })
+            .catch(() => { /* The bundled catalog remains available offline. */ });
+        return () => { live = false; };
     }, []);
 
-    return { list, failed };
+    return list;
 }
 
 type CheckResult = ThemePreviewPalette | ThemeDownloadError["kind"];
@@ -250,10 +261,8 @@ function useThemeChecks(urls: string[]) {
     }, [urls]);
 
     return useMemo(() => {
-        // A site that couldn't be reached only counts once another theme came through, so being offline hides nothing
-        const online = Object.values(results).some(result => typeof result !== "string");
         const unavailable = new Set(Object.entries(results)
-            .filter(([, result]) => typeof result === "string" && (result !== "unreachable" || online))
+            .filter(([url, result]) => !bundledPreviews.has(url) && (result === "gone" || result === "invalid"))
             .map(([url]) => url));
         return { results, unavailable };
     }, [results]);
@@ -261,14 +270,14 @@ function useThemeChecks(urls: string[]) {
 
 /** The library: Catppuccin's themes, then the marketplace's, searchable by name, author and description */
 function Library() {
-    const { list, failed } = useMarketplace();
+    const list = useMarketplace();
     const installed = useProxy(themes);
     const [query, setQuery] = useState("");
     const [width, setWidth] = useState(0);
     const columns = Math.max(1, Math.floor((width + GAP) / (MIN_CARD_WIDTH + GAP)));
     const cardWidth = (width - GAP * (columns - 1)) / columns;
 
-    const listed = useMemo(() => [...catppuccin, ...list ?? []], [list]);
+    const listed = useMemo(() => [...catppuccin, ...list], [list]);
     const { results, unavailable } = useThemeChecks(useMemo(() => listed.map(theme => theme.installUrl), [listed]));
 
     // Not memoized: `installed` is the same object as it changes, and the list is a few dozen themes
@@ -305,9 +314,7 @@ function Library() {
                     palette={typeof result === "string" ? undefined : result} />;
             })}
         </View>
-        {list === null && <ActivityIndicator style={{ marginVertical: 24 }} />}
-        {list !== null && !shown.length && <Text variant="text-md/medium" color="text-muted" style={{ textAlign: "center" }}>{t("No results")}</Text>}
-        {failed && <Text variant="text-md/medium" color="text-feedback-critical">{t("Couldn't load the theme list. Check your connection and try again.")}</Text>}
+        {!shown.length && <Text variant="text-md/medium" color="text-muted" style={{ textAlign: "center" }}>{t("No results")}</Text>}
     </Stack>;
 }
 
