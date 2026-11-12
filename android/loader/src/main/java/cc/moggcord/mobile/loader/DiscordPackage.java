@@ -4,13 +4,15 @@
  */
 package cc.moggcord.mobile.loader;
 
+import com.android.tools.build.apkzlib.zip.AlignmentRules;
+import com.android.tools.build.apkzlib.zip.StoredEntry;
 import com.android.tools.build.apkzlib.zip.ZFile;
+import com.android.tools.build.apkzlib.zip.ZFileOptions;
 
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
+import java.io.DataInputStream;
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
 
 import pxb.android.axml.AxmlReader;
 import pxb.android.axml.AxmlVisitor;
@@ -22,21 +24,33 @@ final class DiscordPackage {
     static final String MOGGCORD = "cc.moggcord.mobile.discord";
     private static final String ANDROID = "http://schemas.android.com/apk/res/android";
     private static final String MANIFEST = "AndroidManifest.xml";
+    private static final String RESOURCE_TABLE = "resources.arsc";
 
     static void rename(File apk) throws IOException {
-        try (ZFile zip = ZFile.openReadWrite(apk)) {
+        ZFileOptions options = new ZFileOptions().setAlignmentRule(
+            AlignmentRules.constantForSuffix(RESOURCE_TABLE, 4096));
+        try (ZFile zip = ZFile.openReadWrite(apk, options)) {
             var entry = zip.get(MANIFEST);
             if (entry == null) throw new IOException("Discord APK is missing its manifest.");
+            zip.add(MANIFEST, new ByteArrayInputStream(renameManifest(read(entry))));
 
-            byte[] manifest;
-            try (InputStream input = entry.open()) {
-                ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-                byte[] buffer = new byte[8192];
-                for (int size; (size = input.read(buffer)) != -1;) bytes.write(buffer, 0, size);
-                manifest = bytes.toByteArray();
+            // Native-library splits may not contain resources. Other splits share the base APK's package name.
+            var resources = zip.get(RESOURCE_TABLE);
+            if (resources != null) {
+                byte[] table = read(resources);
+                if (DiscordResources.renamePackage(table, ORIGINAL, MOGGCORD)) {
+                    zip.add(RESOURCE_TABLE, new ByteArrayInputStream(table), false);
+                }
             }
-            zip.add(MANIFEST, new ByteArrayInputStream(renameManifest(manifest)));
         }
+    }
+
+    private static byte[] read(StoredEntry entry) throws IOException {
+        byte[] bytes = new byte[Math.toIntExact(entry.getCentralDirectoryHeader().getUncompressedSize())];
+        try (DataInputStream input = new DataInputStream(entry.open())) {
+            input.readFully(bytes);
+        }
+        return bytes;
     }
 
     private static byte[] renameManifest(byte[] manifest) throws IOException {
