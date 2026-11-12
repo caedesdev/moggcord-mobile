@@ -19,6 +19,8 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
+import android.system.Os;
+import android.system.OsConstants;
 import android.util.Log;
 import android.view.View;
 import android.view.WindowInsets;
@@ -36,12 +38,16 @@ public final class LauncherActivity extends Activity {
     private static String detail;
     private static Intent confirmation;
     private boolean requestedPermission;
+    private boolean requestedTestInstall;
 
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
         setContentView(R.layout.launcher);
-        if (state != null) requestedPermission = state.getBoolean("requestedPermission");
+        if (state != null) {
+            requestedPermission = state.getBoolean("requestedPermission");
+            requestedTestInstall = state.getBoolean("requestedTestInstall");
+        }
         View launcher = findViewById(R.id.launcher);
         if (Build.VERSION.SDK_INT >= 30) {
             launcher.setOnApplyWindowInsetsListener((view, insets) -> {
@@ -60,7 +66,7 @@ public final class LauncherActivity extends Activity {
         if (requestedPermission) {
             requestedPermission = false;
             if (getPackageManager().canRequestPackageInstalls()) {
-                startInstall();
+                startInstall(requestedTestInstall);
             } else {
                 setMessage(R.string.install_permission_required, null);
             }
@@ -78,6 +84,7 @@ public final class LauncherActivity extends Activity {
     protected void onSaveInstanceState(Bundle state) {
         super.onSaveInstanceState(state);
         state.putBoolean("requestedPermission", requestedPermission);
+        state.putBoolean("requestedTestInstall", requestedTestInstall);
     }
 
     private void refresh() {
@@ -98,7 +105,7 @@ public final class LauncherActivity extends Activity {
                 open(new Intent(Intent.ACTION_VIEW,
                     Uri.parse("https://play.google.com/store/apps/details?id=" + DiscordPackage.ORIGINAL)), R.string.discord);
             } else {
-                requestInstall();
+                requestInstall(false);
             }
         });
 
@@ -107,6 +114,11 @@ public final class LauncherActivity extends Activity {
         launch.setEnabled(!installing);
         launch.setOnClickListener(view -> open(
             getPackageManager().getLaunchIntentForPackage(DiscordPackage.MOGGCORD), R.string.open_moggcord));
+
+        Button test = findViewById(R.id.test_without_moggcord);
+        test.setVisibility(discord != null && moggcord != null ? View.VISIBLE : View.GONE);
+        test.setEnabled(!installing);
+        test.setOnClickListener(view -> requestInstall(true));
 
         findViewById(R.id.install_progress).setVisibility(installing && message == R.string.preparing
             ? View.VISIBLE : View.GONE);
@@ -136,12 +148,13 @@ public final class LauncherActivity extends Activity {
         }
     }
 
-    private void requestInstall() {
+    private void requestInstall(boolean testMode) {
         if (getPackageManager().canRequestPackageInstalls()) {
-            startInstall();
+            startInstall(testMode);
             return;
         }
         requestedPermission = true;
+        requestedTestInstall = testMode;
         Intent intent = new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
             Uri.parse("package:" + getPackageName()));
         if (!open(intent, R.string.install_permission)) {
@@ -150,7 +163,7 @@ public final class LauncherActivity extends Activity {
         }
     }
 
-    private void startInstall() {
+    private void startInstall(boolean testMode) {
         if (installing) return;
         PackageInfo discord = installedPackage(DiscordPackage.ORIGINAL);
         if (discord == null || discord.applicationInfo == null) {
@@ -162,7 +175,7 @@ public final class LauncherActivity extends Activity {
         setMessage(R.string.preparing, null);
         new Thread(() -> {
             try {
-                DiscordInstaller.install(context, discord.applicationInfo,
+                DiscordInstaller.install(context, discord.applicationInfo, testMode,
                     () -> MAIN.post(() -> setMessage(R.string.confirm_install, null)));
             } catch (Exception | LinkageError error) {
                 Log.e(TAG, "Could not prepare Moggcord Discord.", error);
@@ -213,7 +226,17 @@ public final class LauncherActivity extends Activity {
                         setMessage(R.string.confirm_install, null);
                     }
                 }
-                case PackageInstaller.STATUS_SUCCESS -> finishInstall(R.string.install_success, null);
+                case PackageInstaller.STATUS_SUCCESS -> {
+                    if (intent.getBooleanExtra(DiscordInstaller.TEST_MODE, false)) {
+                        long pageSize = Os.sysconf(OsConstants._SC_PAGESIZE);
+                        String device = pageSize > 0
+                            ? context.getString(R.string.test_mode_device, Build.VERSION.RELEASE, pageSize / 1024)
+                            : null;
+                        finishInstall(R.string.test_install_success, device);
+                    } else {
+                        finishInstall(R.string.install_success, null);
+                    }
+                }
                 case PackageInstaller.STATUS_FAILURE_ABORTED -> finishInstall(R.string.install_canceled, null);
                 default -> finishInstall(R.string.install_failed, intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE));
             }
