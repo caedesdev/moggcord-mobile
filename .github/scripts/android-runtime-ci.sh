@@ -66,7 +66,7 @@ except (OSError, ET.ParseError):
 welcome = {'welcome to discord', 'log in', 'login', 'register', 'sign up', 'create an account', 'email or phone number'}
 installer_packages = {'com.android.packageinstaller', 'com.google.android.packageinstaller',
                       'com.android.permissioncontroller', 'com.google.android.permissioncontroller'}
-approved_labels = welcome | {'install in discord', 'reinstall moggcord', 'open moggcord', 'install', 'cancel', 'done', 'open'}
+approved_labels = welcome | {'install in discord', 'reinstall moggcord', 'open moggcord', 'install', 'update', 'cancel', 'done', 'open'}
 allowed_packages = installer_packages | {package, 'com.discord', 'cc.moggcord.mobile.discord',
                                          'cc.moggcord.mobile.launcher.debug'}
 safe = ET.Element('hierarchy')
@@ -89,7 +89,7 @@ for node in root.iter('node'):
     elif mode == 'launcher' and node_package == package and attrs.get('resource-id', '').endswith(':id/discord_action'):
         if labels & {'install in discord', 'reinstall moggcord'} and attrs.get('enabled') == 'true':
             found = attrs.get('bounds')
-    elif mode == 'confirm' and node_package in installer_packages and 'install' in labels:
+    elif mode == 'confirm' and node_package in installer_packages and labels & {'install', 'update'}:
         if attrs.get('clickable') == 'true' and attrs.get('enabled') == 'true':
             found = attrs.get('bounds')
 
