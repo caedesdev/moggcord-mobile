@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import spitroast from "spitroast";
 import { nativeModule } from "./native-host.mjs";
 
 async function host(nativeIcons = true) {
@@ -92,6 +93,9 @@ test("the local platform preview coexists with real indicators and changes only 
   const state = await host();
   const { default: preview } = await nativeModule("runtime/src/plugins/platformSpoofer/index.tsx", {
     "@core/i18n": { tx: text => text },
+    "@lib/api/patcher": spitroast,
+    "@metro": {},
+    "react-native": { Platform: { OS: "ios" } },
     "../api": { definePlugin: definition => ({ ...definition, store: { device: "browser" } }) },
     "../common": { currentUserId: () => "self" },
     "../platformIndicators/render": state.renderer
@@ -112,4 +116,69 @@ test("the local platform preview coexists with real indicators and changes only 
   assert.equal(state.sessions.desktop.clientInfo.client, "desktop");
   state.stop();
   assert.equal(state.RowManager.prototype.generate, state.original);
+});
+
+async function platformPresence(os, { missingFastConnect = false } = {}) {
+  const stock = Object.freeze({ browser: os === "ios" ? "Discord iOS" : "Discord Android", os, locale: "en" });
+  const getSuperProperties = () => stock;
+  const properties = { getSuperProperties, getSuperPropertiesBase64() {} };
+  const socket = {
+    handleIdentify() {
+      assert.equal(this, socket);
+      return { properties: properties.getSuperProperties(), presence: { status: "idle" } };
+    }
+  };
+  const fastConnect = {
+    identifyWebSocket(fail = false) {
+      assert.equal(this, fastConnect);
+      if (fail) throw new Error("Connection failed");
+      return JSON.stringify({ op: 2, d: { properties: properties.getSuperProperties(), capabilities: 7 } });
+    }
+  };
+  const cleanups = [];
+  const { default: plugin } = await nativeModule("runtime/src/plugins/platformSpoofer/index.tsx", {
+    "@core/i18n": { t: text => text, tx: text => text },
+    "@lib/api/patcher": spitroast,
+    "@metro": { findByProps: () => properties },
+    "react-native": { Platform: { OS: os } },
+    "../api": { definePlugin: def => def },
+    "../common": { moduleAt: path => path === "modules/gateway/GatewaySocketSingleton.tsx"
+      ? { socket } : missingFastConnect ? {} : fastConnect },
+    "../platformIndicators/render": { installPlatformIconProvider() { assert.fail("Presence must not install a local preview"); } }
+  });
+  const store = { device: "browser", visibleToOthers: true };
+  const start = () => plugin.start({ store, cleanup: callback => cleanups.push(callback) });
+  return { stock, getSuperProperties, properties, socket, fastConnect, store, start,
+    stop: () => cleanups.reverse().forEach(cleanup => cleanup()) };
+}
+
+for (const os of ["ios", "android"]) {
+  test(`platform presence changes only the browser field during both ${os} connection paths`, async () => {
+    const state = await platformPresence(os);
+    state.start();
+    assert.equal(state.properties.getSuperProperties(), state.stock);
+    const normal = state.socket.handleIdentify();
+    assert.equal(JSON.stringify(normal), JSON.stringify({
+      properties: { ...state.stock, browser: "Discord Web" }, presence: { status: "idle" }
+    }));
+    assert.deepEqual(JSON.parse(state.fastConnect.identifyWebSocket()), {
+      op: 2, d: { properties: { ...state.stock, browser: "Discord Web" }, capabilities: 7 }
+    });
+    assert.throws(() => state.fastConnect.identifyWebSocket(true), /Connection failed/);
+    assert.equal(state.properties.getSuperProperties(), state.stock);
+    state.store.device = "invalid";
+    assert.equal(state.socket.handleIdentify().properties, state.stock);
+    state.store.device = "desktop";
+    state.store.visibleToOthers = false;
+    assert.equal(state.socket.handleIdentify().properties, state.stock);
+    state.stop();
+    assert.equal(state.properties.getSuperProperties, state.getSuperProperties);
+  });
+}
+
+test("platform presence leaves the connection untouched when Discord's hooks are unavailable", async () => {
+  const state = await platformPresence("ios", { missingFastConnect: true });
+  assert.throws(state.start, /does not support reporting a different platform/);
+  assert.equal(state.properties.getSuperProperties, state.getSuperProperties);
+  assert.equal(state.socket.handleIdentify().properties, state.stock);
 });

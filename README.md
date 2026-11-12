@@ -7,7 +7,7 @@
 
 Moggcord Mobile is a separate project with a shared React Native payload. Open Discord settings and choose **Moggcord Mobile** in the **Moggcord** section.
 
-- **Mobile plugins.** 304 mobile implementations are bundled and available from the Plugins tab with search, switches and per-plugin settings. Platform Spoofer previews a different device icon on your own messages on this device.
+- **Mobile plugins.** 304 mobile implementations are bundled and available from the Plugins tab with search, switches and per-plugin settings. In **Platform Spoofer**, choose a platform and enable **Visible to others** to report it when Discord connects. Fully restart Discord after changing the setting. With the switch off, it previews the icon on your own messages.
 - **Overview.** A cobalt-blue dashboard shows your enabled-plugin count and saved uploads. Four tiles open Plugins, Community, Appearance and Backup; a fixed bottom navigation stays within reach as the content scrolls.
 - **Native user actions.** 21 user-related plugins share entries in profiles, the profile's three-dot menu and message menus. Only enabled plugins contribute actions. PermissionsViewer shows server roles and permission flags without truncating high bits.
 - **In-app iOS updates.** In Moggcord settings, choose **Check for updates**, then **Update and restart**. Requires the 0.4.0 loader once; subsequent compatible plugin and UI updates do not require another IPA. Discord and native-loader changes still require a signed app update.
