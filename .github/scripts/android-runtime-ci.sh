@@ -129,8 +129,13 @@ probe() {
     local label="$1" package="$2" deadline
     adb shell am force-stop "$package"
     adb logcat -c
-    timeout 20s adb shell am start -W -a android.intent.action.MAIN -c android.intent.category.LAUNCHER \
-        -p "$package" >"$output/$label-start.txt" || true
+    if ! timeout 25s adb shell am start -W -a android.intent.action.MAIN -c android.intent.category.LAUNCHER \
+        -n "$package/com.discord.main.MainDefault" >"$output/$label-start.txt" 2>&1 ||
+        grep -q '^Error' "$output/$label-start.txt"; then
+        result "$label: Discord activity did not launch"
+        capture "$label"
+        return 1
+    fi
     deadline=$((SECONDS + 60))
     while ((SECONDS < deadline)); do
         if dump_ui && inspect_ui screen "$package" "$output/$label.xml" >/dev/null; then
@@ -146,15 +151,15 @@ probe() {
 }
 
 install_clone() {
-    local tap deadline confirm_tapped=false
+    local label="${1:-launcher}" tap deadline confirm_tapped=false
     adb shell am force-stop "$original"
     adb logcat -c
-    adb install "$launcher_apk"
+    adb install -r "$launcher_apk"
     adb shell cmd appops set "$launcher" REQUEST_INSTALL_PACKAGES allow
-    adb shell am start -W -n "$launcher/cc.moggcord.mobile.loader.LauncherActivity" >"$output/launcher-start.txt"
+    adb shell am start -W -n "$launcher/cc.moggcord.mobile.loader.LauncherActivity" >"$output/$label-start.txt"
     deadline=$((SECONDS + 35))
     while ((SECONDS < deadline)); do
-        if dump_ui && tap="$(inspect_ui launcher "$launcher" "$output/launcher.xml")"; then
+        if dump_ui && tap="$(inspect_ui launcher "$launcher" "$output/$label.xml")"; then
             tap_bounds "$tap"
             break
         fi
@@ -164,19 +169,19 @@ install_clone() {
     deadline=$((SECONDS + 150))
     while ((SECONDS < deadline)); do
         if adb shell pm path "$clone" | grep -q '^package:'; then
-            result 'Launcher: cloned Discord installed'
-            capture launcher
+            result "$label: cloned Discord installed"
+            capture "$label"
             return 0
         fi
         if [[ "$confirm_tapped" == false ]] && dump_ui &&
-            tap="$(inspect_ui confirm "$launcher" "$output/installer.xml")"; then
+            tap="$(inspect_ui confirm "$launcher" "$output/$label-installer.xml")"; then
             tap_bounds "$tap"
             confirm_tapped=true
         fi
         sleep 2
     done
-    result 'Launcher: cloned Discord installation did not complete'
-    capture launcher
+    result "$label: cloned Discord installation did not complete"
+    capture "$label"
     return 1
 }
 
@@ -191,5 +196,17 @@ probe original "$original" || original_ok=false
 install_clone
 clone_ok=true
 probe clone "$clone" || clone_ok=false
+
+if [[ "$original_ok" == true && "$clone_ok" == false ]]; then
+    # Keep all clone operations and the same test key, and omit only the Xposed module.
+    installer=android/loader/src/main/java/cc/moggcord/mobile/loader/DiscordInstaller.java
+    module_line='.module(new File(context.getApplicationInfo().sourceDir))'
+    test "$(grep -F -c "$module_line" "$installer")" -eq 1
+    sed -i '\|\.module(new File(context\.getApplicationInfo()\.sourceDir))|d' "$installer"
+    gradle -p android :loader:assembleDebug
+    adb uninstall "$clone"
+    install_clone launcher-without-module
+    probe clone-without-module "$clone" || true
+fi
 
 [[ "$original_ok" == true && "$clone_ok" == true ]]
