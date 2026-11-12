@@ -1,5 +1,5 @@
 # Copyright (c) 2026 Moggcord contributors. SPDX-License-Identifier: GPL-3.0-or-later
-"""Sign the already-built iOS runtime. Keep the private key outside this repository."""
+"""Sign the already-built mobile runtime. Keep the private key outside this repository."""
 import argparse
 import base64
 import hashlib
@@ -13,7 +13,11 @@ from cryptography.hazmat.primitives.asymmetric import ec
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--key", type=Path, required=True)
 parser.add_argument("--output", type=Path, required=True)
+parser.add_argument("--platform", choices=("ios", "android"), default="ios")
+parser.add_argument("--discord-build", help="Exact installed Android version code")
 args = parser.parse_args()
+if args.platform == "android" and not re.fullmatch(r"[1-9]\d{0,17}", args.discord_build or ""):
+    parser.error("Android requires the exact compatible Discord --discord-build.")
 root = Path(__file__).resolve().parents[1]
 version = json.loads((root / "package.json").read_text())["version"]
 if not re.fullmatch(r"(0|[1-9]\d{0,5})\.(0|[1-9]\d{0,5})\.(0|[1-9]\d{0,5})", version):
@@ -29,9 +33,16 @@ bundle = (root / "dist/moggcord-mobile.js").read_bytes()
 if not 0 < len(bundle) <= 8 * 1024 * 1024:
     raise SystemExit("The built runtime has an invalid size.")
 revision = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip()
-loader_version = int(re.search(r"moggcord_loader_version\s*=\s*(\d+)", (root / "ios/LoaderVersion.h").read_text())[1])
-manifest = {"schema": 1, "platform": "ios", "version": version, "minLoader": loader_version, "discordBuild": "110861",
-            "revision": revision, "bundle": f"https://moggcord.cc/mobile/updates/ios/{version}/moggcord-mobile.js",
+if args.platform == "ios":
+    loader_version = int(re.search(r"moggcord_loader_version\s*=\s*(\d+)", (root / "ios/LoaderVersion.h").read_text())[1])
+    discord_build = "110861"
+else:
+    verifier = root / "android/loader/src/main/java/cc/moggcord/mobile/loader/AndroidRuntimeUpdates.java"
+    loader_version = int(re.search(r"PROTOCOL\s*=\s*(\d+)", verifier.read_text())[1])
+    discord_build = args.discord_build
+manifest = {"schema": 1, "platform": args.platform, "version": version, "minLoader": loader_version,
+            "discordBuild": discord_build, "revision": revision,
+            "bundle": f"https://moggcord.cc/mobile/updates/{args.platform}/{version}/moggcord-mobile.js",
             "bytes": len(bundle), "sha256": hashlib.sha256(bundle).hexdigest()}
 payload = json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode()
 signature = key.sign(payload, ec.ECDSA(hashes.SHA256()))
@@ -39,4 +50,4 @@ key.public_key().verify(signature, payload, ec.ECDSA(hashes.SHA256()))
 envelope = {"payload": base64.b64encode(payload).decode(), "signature": base64.b64encode(signature).decode()}
 with args.output.open("x", encoding="ascii") as target:
     target.write(json.dumps(envelope, separators=(",", ":")) + "\n")
-print(f"Signed iOS runtime {version} ({len(bundle)} bytes, {manifest['sha256']}).")
+print(f"Signed {args.platform} runtime {version} ({len(bundle)} bytes, {manifest['sha256']}).")

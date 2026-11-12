@@ -24,4 +24,6 @@ gradle -p android :loader:assembleDebug :loader:assembleRelease
 
 Successful [GitHub Actions runs](https://github.com/caedesdev/moggcord-mobile/actions/workflows/mobile.yml) attach both APKs under **Moggcord-Mobile-Android-dev**. The debug APK has the `.debug` package suffix. Sign the unsigned release APK with the existing Android launcher keystore before distributing it. Use the same signing key for future releases and keep it outside the repository so Android can install updates in place.
 
+Starting with 0.4.14, select **Reinstall Moggcord** once to add the signed runtime updater to your Discord copy. Use **Moggcord Mobile → Settings → Moggcord updates** for compatible runtime updates. See [runtime updates and recovery](../docs/in-app-updates.md).
+
 The build fetches the pinned LSPatch archive and verifies its SHA-256 digest. At installation, the launcher prepares only the local Discord APK and its installed splits, adds the bundled module, and signs the copy with its device-specific key. The loader uses DexKit to find Discord's React Native bundle delegate when its name is obfuscated and loads the embedded Moggcord payload before Discord's own bundle.

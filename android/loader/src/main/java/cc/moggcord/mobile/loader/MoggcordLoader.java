@@ -4,6 +4,7 @@
  */
 package cc.moggcord.mobile.loader;
 
+import android.app.AndroidAppHelper;
 import android.content.res.AssetManager;
 import android.content.res.Resources;
 import android.util.Log;
@@ -35,7 +36,6 @@ public final class MoggcordLoader implements IXposedHookZygoteInit, IXposedHookL
     private static final String BUNDLE = "moggcord-mobile.js";
     private static final String REACT_INSTANCE = "com.facebook.react.runtime.ReactInstance";
     private static final String FILE_LOADER = "loadScriptFromFile";
-    private static final int MAX_BUNDLE_BYTES = 8 * 1024 * 1024;
     private final Set<Object> initialized = Collections.newSetFromMap(new WeakHashMap<>());
     private String modulePath;
     private boolean hooked;
@@ -62,7 +62,7 @@ public final class MoggcordLoader implements IXposedHookZygoteInit, IXposedHookL
             Class<?> delegate = findDelegate(param.classLoader);
             Method file = delegate.getDeclaredMethod(FILE_LOADER, String.class, String.class, boolean.class);
             Method assets = delegate.getDeclaredMethod("loadScriptFromAssets", AssetManager.class, String.class, boolean.class);
-            File payload = installPayload(new File(param.appInfo.dataDir, "code_cache"));
+            File cache = new File(param.appInfo.dataDir, "code_cache");
             PlatformIndicators.install();
             XC_MethodHook beforeHostBundle = new XC_MethodHook() {
                 @Override
@@ -71,7 +71,14 @@ public final class MoggcordLoader implements IXposedHookZygoteInit, IXposedHookL
                         if (!initialized.add(call.thisObject)) return;
                     }
                     try {
-                        String path = payload.getAbsolutePath();
+                        AndroidRuntimeUpdates.Selection update = null;
+                        try {
+                            var app = AndroidAppHelper.currentApplication();
+                            if (app != null) update = AndroidRuntimeUpdates.select(app);
+                        } catch (Exception | LinkageError error) {
+                            Log.w(TAG, "Could not read Android updates. Using the embedded runtime.", error);
+                        }
+                        String path = installPayload(cache, update).getAbsolutePath();
                         XposedBridge.invokeOriginalMethod(file, call.thisObject, new Object[] { path, path, call.args[2] });
                         Log.i(TAG, "Loaded the embedded Moggcord payload.");
                     } catch (Throwable error) {
@@ -132,17 +139,31 @@ public final class MoggcordLoader implements IXposedHookZygoteInit, IXposedHookL
         }
     }
 
-    private File installPayload(File cache) throws IOException {
+    private File installPayload(File cache, AndroidRuntimeUpdates.Selection update) throws IOException {
         if (!cache.isDirectory() && !cache.mkdirs()) throw new IOException("Could not create the code cache");
         File output = new File(cache, BUNDLE);
         File temporary = File.createTempFile("moggcord-", ".js", cache);
+        try {
+            try (OutputStream target = Files.newOutputStream(temporary.toPath())) {
+                target.write("globalThis.__MOGGCORD_PLATFORM_ICONS__={apiVersion:1};\n".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                if (update != null) target.write(update.prefix().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                if (update != null && update.source() != null) target.write(update.source());
+                else copyEmbedded(target);
+            }
+            Files.move(temporary.toPath(), output.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            return output;
+        } finally {
+            Files.deleteIfExists(temporary.toPath());
+        }
+    }
+
+    private void copyEmbedded(OutputStream target) throws IOException {
         try (ZipFile module = new ZipFile(modulePath)) {
             var entry = module.getEntry("assets/" + BUNDLE);
-            if (entry == null || entry.getSize() <= 0 || entry.getSize() > MAX_BUNDLE_BYTES) {
+            if (entry == null || entry.getSize() <= 0 || entry.getSize() > AndroidRuntimeUpdates.MAX_BUNDLE_BYTES) {
                 throw new IOException("The loader has no valid embedded payload");
             }
-            try (InputStream input = module.getInputStream(entry); OutputStream target = Files.newOutputStream(temporary.toPath())) {
-                target.write("globalThis.__MOGGCORD_PLATFORM_ICONS__={apiVersion:1};\n".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            try (InputStream input = module.getInputStream(entry)) {
                 byte[] buffer = new byte[8192];
                 int total = 0;
                 for (int size; (size = input.read(buffer)) != -1; ) {
@@ -152,10 +173,6 @@ public final class MoggcordLoader implements IXposedHookZygoteInit, IXposedHookL
                 }
                 if (total != entry.getSize()) throw new IOException("The embedded payload is incomplete");
             }
-            Files.move(temporary.toPath(), output.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-            return output;
-        } finally {
-            Files.deleteIfExists(temporary.toPath());
         }
     }
 }

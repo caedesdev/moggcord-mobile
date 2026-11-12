@@ -17,6 +17,7 @@ test("plugin changes queue independently and restart only after saved settings",
     "../../../shared/screen": { createMobileScreen: (_react, _native, _prefs, adapter) => { runtime = adapter; } },
     "../../../shared/preferences": { createPreferenceStore: () => ({ load: async () => ({ enabledPlugins: [] }) }) },
     "../../../shared/updates": { createMobileUpdater },
+    "@lib/api/native/fs": {},
     "@lib/api/native/modules": { BundleUpdaterManager: { reload: () => actions.push("reload") } },
     "@lib/api/storage": { flushStorages: async () => actions.push("switches saved") },
     "@core/vendetta/storage": { flushStorage: async store => {

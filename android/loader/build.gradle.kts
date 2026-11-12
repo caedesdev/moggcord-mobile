@@ -11,6 +11,8 @@ val sharedBundle = rootProject.layout.projectDirectory.file("../dist/moggcord-mo
 val mobilePackage = JsonSlurper().parse(rootProject.file("../package.json")) as Map<*, *>
 val mobileVersion = mobilePackage["version"] as String
 val (major, minor, patch) = mobileVersion.split(".").map(String::toInt)
+val updatePublicKey = Regex("moggcord_update_key\\s*=\\s*\"([A-Za-z0-9+/=]+)\"")
+    .find(rootProject.file("../ios/UpdatePublicKey.h").readText())!!.groupValues[1]
 val payloadAssets = layout.buildDirectory.dir("generated/moggcord/assets")
 val prepareMoggcordPayload by tasks.registering(Copy::class) {
     from(sharedBundle)
@@ -68,7 +70,10 @@ android {
         targetSdk = 36
         versionCode = major * 1_000_000 + minor * 1_000 + patch
         versionName = mobileVersion
+        buildConfigField("String", "RUNTIME_VERSION", "\"$mobileVersion\"")
+        buildConfigField("String", "UPDATE_PUBLIC_KEY", "\"$updatePublicKey\"")
     }
+    buildFeatures { buildConfig = true }
     buildTypes {
         getByName("debug") {
             applicationIdSuffix = ".debug"

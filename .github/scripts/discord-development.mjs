@@ -117,13 +117,15 @@ async function githubRelease() {
     const version = tagVersion(release?.tag_name);
     if (!version || release.draft || !release.published_at) return null;
     const expected = mobile
-        ? [["Android APK", "Moggcord-Mobile-Android-v" + version + ".apk"], ["iOS IPA", "Moggcord-Mobile-iOS-v" + version + ".ipa"]]
+        ? [["Android APK", ["Moggcord-Android.apk", "Moggcord-Mobile-Android-v" + version + ".apk"]],
+           ["iOS IPA", "Moggcord-Mobile-iOS-v" + version + ".ipa"]]
         : [["Windows", "Moggcord-Installer.exe"], ["macOS", "Moggcord-Installer-macOS.dmg"],
            ["Linux AppImage", "Moggcord-Installer-Linux.AppImage"], ["Linux DEB", "Moggcord-Installer-Linux.deb"]];
-    const downloads = expected.flatMap(([label, name]) => {
-        const url = repository + "/releases/download/" + encodeURIComponent(release.tag_name) + "/" + name;
-        return release.assets?.some(asset => asset.name === name && asset.state === "uploaded" && asset.size > 0 &&
-            asset.browser_download_url === url) ? [{ label, url }] : [];
+    const downloads = expected.flatMap(([label, names]) => {
+        const base = repository + "/releases/download/" + encodeURIComponent(release.tag_name) + "/";
+        const name = [].concat(names).find(name => release.assets?.some(asset =>
+            asset.name === name && asset.state === "uploaded" && asset.size > 0 && asset.browser_download_url === base + name));
+        return name ? [{ label, url: base + name }] : [];
     });
     if (!downloads.length) return null;
     const commit = await github("/commits/" + encodeURIComponent(release.tag_name));

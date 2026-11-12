@@ -1,4 +1,4 @@
-const manifestUrl = "https://moggcord.cc/mobile/updates/ios/manifest.json";
+const updateOrigin = "https://moggcord.cc/mobile/updates/";
 const maximumBundle = 8 * 1024 * 1024;
 
 function compare(a, b) {
@@ -12,7 +12,8 @@ function compare(a, b) {
 /** Network reads stay in JS; signature verification, integrity and atomic installation stay in the native loader. */
 export function createMobileUpdater({ version, bridge, request = (...args) => fetch(...args), reload,
   wait = ms => new Promise(resolve => setTimeout(resolve, ms)) }) {
-  const supported = bridge?.apiVersion === 1 && bridge.platform === "ios" &&
+  const platform = bridge?.platform;
+  const supported = bridge?.apiVersion === 1 && ["ios", "android"].includes(platform) &&
     [bridge.verify, bridge.stage, bridge.confirm].every(method => typeof method === "function");
   let state = { supported, phase: supported ? "idle" : "unsupported", version, availableVersion: "",
     message: supported ? "Update plugins and Moggcord without reinstalling Discord." : "This loader does not support in-app updates yet.",
@@ -55,10 +56,10 @@ export function createMobileUpdater({ version, bridge, request = (...args) => fe
       available = null;
       set({ phase: "checking", availableVersion: "", message: "Checking for updates…" });
       try {
-        const envelope = await read(manifestUrl, 16384);
-        const manifest = JSON.parse(bridge.verify(envelope));
-        const expected = "https://moggcord.cc/mobile/updates/ios/" + manifest.version + "/moggcord-mobile.js";
-        if (manifest.platform !== "ios" || manifest.bundle !== expected || !Number.isSafeInteger(manifest.bytes) ||
+        const envelope = await read(updateOrigin + platform + "/manifest.json", 16384);
+        const manifest = JSON.parse(await bridge.verify(envelope));
+        const expected = updateOrigin + platform + "/" + manifest.version + "/moggcord-mobile.js";
+        if (manifest.platform !== platform || manifest.bundle !== expected || !Number.isSafeInteger(manifest.bytes) ||
             manifest.bytes < 1 || manifest.bytes > maximumBundle) throw Error("The update manifest is invalid.");
         if (compare(manifest.version, version) <= 0) set({ phase: "current", message: "Moggcord is up to date." });
         else {
@@ -73,7 +74,7 @@ export function createMobileUpdater({ version, bridge, request = (...args) => fe
       set({ phase: "downloading", message: "Downloading Moggcord " + manifest.version + "…" });
       try {
         const source = await read(manifest.bundle, maximumBundle);
-        if (bridge.stage(envelope, source) !== true) throw Error("The update could not be saved.");
+        if (await bridge.stage(envelope, source) !== true) throw Error("The update could not be saved.");
         available = null;
         set({ phase: "pending", message: "Update saved. Preparing to restart…" });
         await restart();

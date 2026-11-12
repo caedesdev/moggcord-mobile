@@ -4,7 +4,8 @@ import * as RN from "react-native";
 import { createMobileScreen } from "../../../shared/screen";
 import { createPreferenceStore } from "../../../shared/preferences";
 import { createMobileUpdater } from "../../../shared/updates";
-import { BundleUpdaterManager, NativeCacheModule } from "@lib/api/native/modules";
+import { BundleUpdaterManager, NativeCacheModule, NativeFileModule } from "@lib/api/native/modules";
+import { writeDocument } from "@lib/api/native/fs";
 import { flushStorages } from "@lib/api/storage";
 import { flushStorage } from "@core/vendetta/storage";
 import { registerSection } from "@ui/settings";
@@ -46,9 +47,13 @@ function markPluginChange(store?: object) {
     }
 }
 
-const updater = createMobileUpdater({ version: MOGGCORD_MOBILE_VERSION, bridge: (globalThis as any).__MOGGCORD_UPDATER__,
+const androidUpdates = (globalThis as any).__MOGGCORD_ANDROID_UPDATES__;
+const nativeUpdater = (globalThis as any).__MOGGCORD_UPDATER__ ?? (androidUpdates &&
+    require("../../../shared/android-updates").createAndroidUpdaterBridge(androidUpdates, NativeFileModule, writeDocument));
+const updater = createMobileUpdater({ version: MOGGCORD_MOBILE_VERSION, bridge: nativeUpdater,
     reload: reloadDiscord });
 updater.subscribe(announce);
+export const confirmRuntimeUpdate = () => nativeUpdater?.confirm(MOGGCORD_MOBILE_VERSION);
 
 const runtime = {
     accounts: discordAccounts,

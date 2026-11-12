@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { createHash, generateKeyPairSync, sign } from "node:crypto";
 import { createMobileUpdater } from "../shared/updates.js";
+import { createAndroidUpdaterBridge } from "../shared/android-updates.js";
 
 function host(options = {}) {
   const requests = [], stages = [], reloads = [];
@@ -82,4 +84,46 @@ test("current, older and unsupported loaders do not download updates", async () 
   const unsupported = createMobileUpdater({ version: "0.3.1", bridge: null, request() { assert.fail("Unexpected network request"); } });
   await unsupported.check(); await unsupported.install();
   assert.equal(unsupported.snapshot().supported, false);
+});
+
+test("Android checks its own signed feed, verifies the download, then stages and restarts", async () => {
+  const { privateKey, publicKey } = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
+  const source = "/* Android update */";
+  const digest = createHash("sha256").update(source).digest("hex");
+  const url = "https://moggcord.cc/mobile/updates/android/";
+  const manifest = { schema: 1, platform: "android", version: "0.4.15", bytes: source.length, minLoader: 1,
+    discordBuild: "353011", bundle: url + "0.4.15/moggcord-mobile.js", revision: "a".repeat(40), sha256: digest };
+  function signed(fields) {
+    const payload = Buffer.from(JSON.stringify(fields));
+    return JSON.stringify({ payload: payload.toString("base64"),
+      signature: sign("sha256", payload, privateKey).toString("base64") });
+  }
+  const envelope = signed(manifest);
+  const writes = [], requests = [];
+  const bridge = createAndroidUpdaterBridge({ apiVersion: 1, discordBuild: "353011",
+    publicKey: publicKey.export({ type: "spki", format: "der" }).subarray(-65).toString("base64"),
+    filesDir: "/data/user/0/cc.moggcord.mobile.discord/files", candidateVersion: manifest.version, candidateHash: digest },
+  { getConstants: () => ({ DocumentsDirPath: "/data/data/cc.moggcord.mobile.discord/files" }), writeFile() {} },
+  async (name, data) => { writes.push({ name, data }); });
+  assert.throws(() => bridge.verify(signed({ ...manifest, discordBuild: "352017" })), /Discord build/);
+  assert.throws(() => bridge.verify(signed({ ...manifest, platform: "ios" })), /Discord build/);
+  const tampered = JSON.parse(envelope);
+  tampered.payload = Buffer.from(JSON.stringify({ ...manifest, version: "0.4.16" })).toString("base64");
+  assert.throws(() => bridge.verify(JSON.stringify(tampered)), /signature/);
+  await assert.rejects(bridge.stage(envelope, "x".repeat(source.length)), /integrity/);
+  let restarts = 0;
+  const updater = createMobileUpdater({ version: "0.4.14", bridge, wait: async () => {}, reload: () => { restarts++; },
+    request: async path => {
+      requests.push(path);
+      return { ok: true, text: async () => path.endsWith("manifest.json") ? envelope : source };
+    } });
+  await updater.check();
+  assert.equal(updater.snapshot().availableVersion, manifest.version);
+  await updater.install();
+  assert.deepEqual(requests, [url + "manifest.json", manifest.bundle]);
+  assert.deepEqual(writes, [{ name: "moggcord-updates/pending.json", data: JSON.stringify({ envelope, source }) }]);
+  assert.equal(restarts, 1);
+  await bridge.confirm("0.4.14");
+  await bridge.confirm(manifest.version);
+  assert.deepEqual(writes[1], { name: "moggcord-updates/confirmed.txt", data: digest });
 });

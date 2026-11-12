@@ -215,6 +215,7 @@ export function createMobileScreen(React, RN, store, runtime) {
       setNotice("");
       settingsTarget.current = target;
       if (next === "Settings" && target === "backup") setBackupOpen(true);
+      if (next === "Settings" && state.updater?.phase === "idle") void runtime.checkForUpdates();
       setTab(next);
       scrollRef.current?.scrollTo?.({ y: 0, animated: false });
     }
@@ -497,7 +498,7 @@ export function createMobileScreen(React, RN, store, runtime) {
           actionRow("CT", "Call Timer", "Current call · " + duration(state.callStarted, time), () => go("Plugins"))),
         homeLink("update", updateLabel, updateDescription, () => {
           go("Settings", "updates");
-          if (update?.supported) void runtime.checkForUpdates();
+          if (update?.supported && update.phase !== "idle") void runtime.checkForUpdates();
         }),
         homeLink("external", "moggcord.cc", "", () => void open(origin), true));
     }

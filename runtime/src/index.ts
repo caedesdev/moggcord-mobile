@@ -9,7 +9,7 @@ import { patchCommands } from "@lib/api/commands";
 import { injectFluxInterceptor } from "@lib/api/flux";
 import { patchJsx } from "@lib/api/react/jsx";
 import { patchSettings } from "@ui/settings";
-import { initMoggcordSettings } from "./moggcord";
+import { confirmRuntimeUpdate, initMoggcordSettings } from "./moggcord";
 import * as lib from "./lib";
 
 export default async () => {
@@ -31,9 +31,9 @@ export default async () => {
     await initPlugins();
     markReady();
     // A candidate becomes permanent only after initialization and a short successful app startup.
-    setTimeout(() => {
+    setTimeout(async () => {
         confirmMobileTheme().catch(error => console.warn("[Moggcord] Theme startup confirmation failed", error));
-        try { (globalThis as any).__MOGGCORD_UPDATER__?.confirm(MOGGCORD_MOBILE_VERSION); }
+        try { await confirmRuntimeUpdate(); }
         catch (error) { console.warn("[Moggcord] Update startup confirmation failed", error); }
     }, 5000);
 };

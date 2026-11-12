@@ -1,12 +1,12 @@
 # In-app runtime updates
 
-Moggcord Mobile 0.4.0 adds signed runtime updates to the iOS loader. Once that loader is installed, **Settings → Moggcord updates → Update and restart** updates the shared JavaScript runtime and reloads Discord. The APK loader does not implement this updater yet. Updating Discord or changing the native loader still requires a new signed application.
+Signed runtime updates work with iOS loaders starting at 0.4.0 and Android launchers starting at 0.4.14. On Android, install the new launcher and choose **Reinstall Moggcord** once to embed the updater in the Discord copy. **Settings → Moggcord updates → Update and restart** downloads the shared JavaScript runtime and reloads Discord. Updating Discord or changing the native loader still requires a new signed application.
 
 ## Distribution
 
-The public update entry point is `https://moggcord.cc/mobile/updates/ios/manifest.json`. An envelope contains base64-encoded `payload` and `signature` fields. The signature uses ECDSA P-256, DER encoding, and SHA-256 over the exact decoded payload bytes.
+The public update entry points are `https://moggcord.cc/mobile/updates/ios/manifest.json` and `https://moggcord.cc/mobile/updates/android/manifest.json`. An envelope contains base64-encoded `payload` and `signature` fields. The signature uses ECDSA P-256, DER encoding, and SHA-256 over the exact decoded payload bytes.
 
-The signed payload specifies the schema, runtime version, minimum loader protocol, Discord build, exact download URL, byte length, SHA-256 and source revision. The native verifier pins the public key in `ios/UpdatePublicKey.h`. JavaScript cannot replace the native verifier or choose a different update origin. Application requests omit Discord credentials.
+The signed payload specifies the schema, runtime version, minimum loader protocol, Discord build, exact download URL, byte length, SHA-256 and source revision. Both native verifiers pin the public key defined in `ios/UpdatePublicKey.h`. Application requests omit Discord credentials.
 
 The native loader verifies downloaded and cached payloads. Pending updates are written atomically. A candidate is marked attempted before it runs and becomes the confirmed runtime only after successful initialization and five seconds of startup. If that confirmation does not happen, the next launch uses the last confirmed runtime or the embedded payload. Settings reports a recovery when this happens. This detects startup failures; it cannot prove that every plugin feature works.
 
@@ -22,8 +22,10 @@ Keep the existing signing key outside the repository and all public packages. Lo
    python scripts/sign-mobile-update.py --key /private/path/moggcord-mobile-updates-p256.pem --output dist/manifest.json
    ```
 
-4. Upload `dist/moggcord-mobile.js` to `/mobile/updates/ios/VERSION/moggcord-mobile.js` and verify its public hash. Keep versioned payloads immutable.
-5. Publish the signed envelope at `/mobile/updates/ios/manifest.json` only after the versioned payload is available. Disable caching for the latest manifest.
+   For Android, add `--platform android --discord-build VERSION_CODE` and use a separate manifest output.
+
+4. Upload `dist/moggcord-mobile.js` to `/mobile/updates/PLATFORM/VERSION/moggcord-mobile.js` and verify its public hash. Keep versioned payloads immutable.
+5. Publish the signed envelope at `/mobile/updates/PLATFORM/manifest.json` only after the versioned payload is available. Disable caching for the latest manifest.
 
 Only update manifests matching the installed Discord build and loader protocol are accepted. Publish one grouped release after the source, tests and artifacts are ready. The signing key is not a Windows code-signing certificate or an Apple signing identity.
 
