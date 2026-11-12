@@ -67,18 +67,22 @@
                 android:text="@string/open_moggcord"
                 android:visibility="gone" />
             <Button android:id="@+id/discord_action" style="@style/LauncherButton" />
-            <ProgressBar
-                android:id="@+id/install_progress"
-                style="?android:attr/progressBarStyleHorizontal"
+            <cc.moggcord.mobile.loader.InstallProgressView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:indeterminate="true"
+                android:layout_marginTop="16dp"
                 android:visibility="gone" />
             <TextView
                 android:id="@+id/install_status"
                 style="@style/LauncherCaption"
                 android:accessibilityLiveRegion="polite"
                 android:layout_marginTop="12dp"
+                android:visibility="gone" />
+            <Button
+                android:id="@+id/uninstall_moggcord"
+                style="@style/LauncherButton"
+                android:backgroundTint="@color/launcher_action_uninstall"
+                android:text="@string/uninstall_moggcord"
                 android:visibility="gone" />
         </LinearLayout>
     </LinearLayout>

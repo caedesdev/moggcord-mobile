@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="install_log_title">Installation log</string>
+    <string name="install_percent_value">%1$d%%</string>
+    <string name="install_time_elapsed">%1$s elapsed</string>
+    <string name="install_time_estimate">%1$s elapsed · ~%2$s left</string>
+    <string name="install_phase_file">%1$s (%2$d/%3$d)</string>
+    <string name="install_phase_prepare">Preparing the installer</string>
+    <string name="install_phase_copy">Copying Discord files</string>
+    <string name="install_phase_read">Reading the package</string>
+    <string name="install_phase_sign">Setting up the signature</string>
+    <string name="install_phase_patch">Preparing the app manifest</string>
+    <string name="install_phase_add_module">Adding Moggcord files</string>
+    <string name="install_phase_split">Rebuilding a split package</string>
+    <string name="install_phase_write">Writing the signed package</string>
+    <string name="install_phase_stage">Sending packages to Android</string>
+    <string name="install_phase_confirm">Waiting for Android confirmation</string>
+    <string name="install_phase_complete">Installation complete</string>
+    <string name="install_phase_canceled">Installation canceled</string>
+    <string name="install_phase_failed">Installation failed</string>
+</resources>
