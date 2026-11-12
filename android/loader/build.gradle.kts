@@ -10,6 +10,7 @@ plugins {
 val sharedBundle = rootProject.layout.projectDirectory.file("../dist/moggcord-mobile.js")
 val mobilePackage = JsonSlurper().parse(rootProject.file("../package.json")) as Map<*, *>
 val mobileVersion = mobilePackage["version"] as String
+val launcherVersion = "$mobileVersion-s24.2"
 val (major, minor, patch) = mobileVersion.split(".").map(String::toInt)
 val payloadAssets = layout.buildDirectory.dir("generated/moggcord/assets")
 val prepareMoggcordPayload by tasks.registering(Copy::class) {
@@ -67,7 +68,8 @@ android {
         minSdk = 28
         targetSdk = 36
         versionCode = major * 1_000_000 + minor * 1_000 + patch
-        versionName = mobileVersion
+        versionName = launcherVersion
+        resValue("string", "launcher_build_label", "Galaxy S24 test · $launcherVersion")
     }
     buildTypes {
         getByName("debug") {
