@@ -114,8 +114,6 @@ public final class LauncherActivity extends Activity {
         launch.setOnClickListener(view -> open(
             getPackageManager().getLaunchIntentForPackage(DiscordPackage.MOGGCORD), R.string.open_moggcord));
 
-        findViewById(R.id.install_progress).setVisibility(installing && message == R.string.preparing
-            ? View.VISIBLE : View.GONE);
         TextView installStatus = findViewById(R.id.install_status);
         installStatus.setVisibility(message == 0 ? View.GONE : View.VISIBLE);
         if (message != 0) {

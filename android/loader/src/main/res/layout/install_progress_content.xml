@@ -36,8 +36,7 @@
         android:maxHeight="6dp"
         android:minHeight="6dp"
         android:progressBackgroundTint="#263755"
-        android:progressTint="#5280FF"
-        android:visibility="gone" />
+        android:progressTint="#5280FF" />
 
     <TextView
         android:id="@+id/install_time"

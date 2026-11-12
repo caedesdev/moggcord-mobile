@@ -18,8 +18,10 @@ public final class InstallProgressView extends LinearLayout {
     private final TextView phase;
     private final TextView time;
     private final TextView log;
-    private final Runnable observer = this::render;
+    private final Runnable observer = this::scheduleRender;
+    private final Runnable frame = this::render;
     private final Runnable clock = this::updateClock;
+    private boolean renderScheduled;
 
     public InstallProgressView(Context context, AttributeSet attributes) {
         super(context, attributes);
@@ -42,27 +44,41 @@ public final class InstallProgressView extends LinearLayout {
     @Override
     protected void onDetachedFromWindow() {
         InstallProgress.stopObserving(observer);
+        removeCallbacks(frame);
         removeCallbacks(clock);
+        renderScheduled = false;
         super.onDetachedFromWindow();
     }
 
+    private void scheduleRender() {
+        if (renderScheduled) return;
+        renderScheduled = true;
+        postOnAnimation(frame);
+    }
+
     private void render() {
+        renderScheduled = false;
         setVisibility(InstallProgress.hasProgress() ? VISIBLE : GONE);
-        if (!InstallProgress.hasProgress()) return;
+        if (!InstallProgress.hasProgress()) {
+            removeCallbacks(clock);
+            return;
+        }
         Context context = getContext();
         int value = InstallProgress.percent();
-        bar.setProgress(value, InstallProgress.isRunning());
-        percent.setText(context.getString(R.string.install_percent_value, value));
-        String currentPhase = InstallProgress.phaseText(context);
-        if (!TextUtils.equals(phase.getText(), currentPhase)) phase.setText(currentPhase);
-        String currentLog = InstallProgress.logText(context);
-        if (!TextUtils.equals(log.getText(), currentLog)) log.setText(currentLog);
+        bar.setProgress(value);
+        updateText(percent, context.getString(R.string.install_percent_value, value));
+        updateText(phase, InstallProgress.phaseText(context));
+        updateText(log, InstallProgress.logText(context));
         updateClock();
     }
 
     private void updateClock() {
         removeCallbacks(clock);
-        time.setText(InstallProgress.timeText(getContext()));
+        updateText(time, InstallProgress.timeText(getContext()));
         if (InstallProgress.isRunning()) postDelayed(clock, 1000);
+    }
+
+    private static void updateText(TextView view, String text) {
+        if (!TextUtils.equals(view.getText(), text)) view.setText(text);
     }
 }
