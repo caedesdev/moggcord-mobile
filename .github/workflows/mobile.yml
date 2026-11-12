@@ -30,6 +30,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     needs: shared
+    outputs:
+      launcher_preview: ${{ steps.upload-preview.outputs.artifact-id }}
     steps:
       - uses: actions/checkout@v7.0.1
         with:
@@ -75,6 +77,52 @@ jobs:
           name: Moggcord-Mobile-Android-dev
           path: dist/artifact-android
           if-no-files-found: error
+      - name: Enable KVM for the Android preview
+        if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
+        continue-on-error: true
+        run: |
+          test -c /dev/kvm
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-moggcord-kvm.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Capture the Android launcher
+        if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
+        id: capture-preview
+        continue-on-error: true
+        timeout-minutes: 8
+        uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          emulator-boot-timeout: 240
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          script: bash scripts/capture-android-launcher.sh dist/artifact-android/Moggcord-Android-Launcher-debug.apk dist/discord-preview/moggcord-android-launcher.png
+      - name: Save the launcher preview
+        if: steps.capture-preview.outcome == 'success'
+        id: upload-preview
+        continue-on-error: true
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: Moggcord-Android-Launcher-Preview
+          path: dist/discord-preview/moggcord-android-launcher.png
+          retention-days: 14
+          if-no-files-found: error
+
+  development-update:
+    name: Discord development update
+    needs: android
+    if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    permissions:
+      actions: read
+      contents: read
+    uses: ./.github/workflows/discord-development.yml
+    with:
+      launcher_preview: ${{ needs.android.outputs.launcher_preview }}
+    secrets:
+      DISCORD_DEVELOPMENT_WEBHOOK_URL: ${{ secrets.DISCORD_DEVELOPMENT_WEBHOOK_URL }}
 
   ios:
     name: iOS loader

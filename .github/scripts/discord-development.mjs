@@ -14,6 +14,8 @@ const messagePath = join(env.RUNNER_TEMP, "discord-message.json");
 const releasePath = join(env.RUNNER_TEMP, "discord-release.json");
 const noMentions = { parse: [] };
 const website = "https://moggcord.cc";
+const previewName = "moggcord-android-launcher.png";
+const previewUrl = "attachment://" + previewName;
 
 async function request(url, label, options = {}) {
     try {
@@ -35,21 +37,42 @@ async function github(path) {
     return response.status === 404 ? null : json(response, "GitHub");
 }
 
-async function discord(suffix, method, payload) {
+async function discord(suffix, method, payload, screenshot) {
     const webhook = env.DISCORD_WEBHOOK_URL ?? "";
     if (!/^https:\/\/discord\.com\/api\/webhooks\/\d+\/[\w-]+$/.test(webhook)) {
         throw new Error("Set DISCORD_DEVELOPMENT_WEBHOOK_URL to the Discord webhook URL.");
     }
-    const response = await request(webhook + suffix, "Discord", {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: payload === undefined ? undefined : JSON.stringify(payload)
-    });
+    const options = { method };
+    if (screenshot) {
+        const form = new FormData();
+        form.set("payload_json", JSON.stringify({
+            ...payload,
+            attachments: [{ id: 0, filename: previewName, description: "Moggcord launcher in the Android emulator" }]
+        }));
+        form.set("files[0]", new Blob([screenshot], { type: "image/png" }), previewName);
+        options.body = form;
+    } else if (payload !== undefined) {
+        options.headers = { "Content-Type": "application/json" };
+        options.body = JSON.stringify(payload);
+    }
+    const response = await request(webhook + suffix, "Discord", options);
     return response.status === 404 && method === "GET" ? null : json(response, "Discord");
 }
 
 function changesUrl(before, after) {
     return repository + (revisionPattern.test(before) ? "/compare/" + before + "..." : "/commit/") + after;
+}
+
+function readPreview() {
+    try {
+        const screenshot = readFileSync(join(env.RUNNER_TEMP, previewName));
+        if (screenshot.length > 8 && screenshot.length <= 8 * 1024 * 1024 &&
+            screenshot.subarray(0, 8).toString("hex") === "89504e470d0a1a0a") return screenshot;
+        console.warn("The launcher preview was not a supported PNG.");
+    } catch (error) {
+        if (error.code !== "ENOENT") console.warn("The launcher preview could not be read.");
+    }
+    return undefined;
 }
 
 async function post() {
@@ -59,6 +82,7 @@ async function post() {
     const subject = event.head_commit?.message?.split(/\r?\n/, 1)[0]?.trim();
     const backtick = String.fromCharCode(96);
     const summary = subject ? backtick + subject.replaceAll(backtick, "'").slice(0, 220) + backtick : "New changes on main.";
+    const screenshot = mobile ? readPreview() : undefined;
     const message = await discord("?wait=true", "POST", {
         allowed_mentions: noMentions,
         embeds: [{
@@ -66,14 +90,18 @@ async function post() {
             url,
             description: summary + "\n\n[View changes](" + url + ")",
             color: 0x808080,
-            footer: { text: "main · " + after.slice(0, 7) }
+            footer: { text: "main · " + after.slice(0, 7) },
+            ...(screenshot && { image: { url: previewUrl } })
         }]
-    });
+    }, screenshot);
     if (!/^\d{17,20}$/.test(message.id) || message.embeds?.[0]?.url !== url) {
         throw new Error("Discord did not confirm the update.");
     }
     writeFileSync(messagePath, JSON.stringify({ id: message.id, before, sha: after }));
-    console.log("Discord confirmed one development update.");
+    const attached = message.attachments?.some(attachment => attachment.filename === previewName) &&
+        Boolean(message.embeds[0].image?.url);
+    console.log(attached ? "Discord confirmed one development update with the Android screenshot."
+        : "Discord confirmed one development update.");
 }
 
 function tagVersion(tag) {
@@ -166,9 +194,14 @@ async function edit() {
     if (releaseField?.value === value || (previous && isNewer(previous, release.version))) return;
     const { title, url, description, footer } = embed;
     const fields = (embed.fields ?? []).filter(field => field.name !== "Release").concat({ name: "Release", value });
+    const attachments = (message.attachments ?? []).map(({ id, filename, description }) => ({ id, filename, description }));
+    const image = attachments.some(attachment => attachment.filename === previewName)
+        ? { url: previewUrl }
+        : embed.image?.url ? { url: embed.image.url } : undefined;
     const updated = await discord(path, "PATCH", {
         allowed_mentions: noMentions,
-        embeds: [{ title, url, description, color: 0x808080, footer, fields }]
+        attachments,
+        embeds: [{ title, url, description, color: 0x808080, footer, fields, image }]
     });
     if (updated.id !== id || !updated.embeds?.[0]?.fields?.some(field => field.name === "Release" && field.value === value)) {
         throw new Error("Discord did not confirm the release links.");

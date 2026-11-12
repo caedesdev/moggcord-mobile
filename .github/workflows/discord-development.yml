@@ -1,11 +1,15 @@
 name: Discord development updates
 
 on:
-  push:
-    branches: [main]
-    paths-ignore:
-      - '.github/workflows/discord-development.yml'
-      - '.github/scripts/discord-development.mjs'
+  workflow_call:
+    inputs:
+      launcher_preview:
+        type: string
+        required: false
+        default: ''
+    secrets:
+      DISCORD_DEVELOPMENT_WEBHOOK_URL:
+        required: true
   release:
     types: [published]
   workflow_dispatch:
@@ -20,7 +24,7 @@ jobs:
     if: ${{ github.event_name == 'push' && !github.event.deleted && github.run_attempt == '1' && !endsWith(github.actor, '[bot]') }}
     concurrency:
       group: discord-development-main
-      cancel-in-progress: true
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
@@ -29,11 +33,28 @@ jobs:
       - uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
+      - name: Check that this build is still current
+        id: latest
+        run: |
+          read -r latest _ < <(git ls-remote --exit-code origin refs/heads/main)
+          if [[ "$latest" == "$GITHUB_SHA" ]]; then
+            echo 'send=true' >> "$GITHUB_OUTPUT"
+          fi
+      - name: Restore the Android launcher screenshot
+        if: ${{ steps.latest.outputs.send == 'true' && inputs.launcher_preview != '' }}
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          artifact-ids: ${{ inputs.launcher_preview }}
+          merge-multiple: true
+          path: ${{ runner.temp }}
       - name: Send one Discord update
+        if: steps.latest.outputs.send == 'true'
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_DEVELOPMENT_WEBHOOK_URL }}
         run: node .github/scripts/discord-development.mjs post
       - name: Remember the Discord message for its release
+        if: steps.latest.outputs.send == 'true'
         uses: actions/upload-artifact@v7.0.2
         with:
           name: discord-message-${{ github.sha }}
