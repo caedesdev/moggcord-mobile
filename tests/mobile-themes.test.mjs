@@ -40,6 +40,23 @@ test("mobile theme normalization accepts real legacy colors and safe modern pale
   assert.equal(mobileColorManifest({ spec: 3, type: "plugin", display: { name: "Code" }, main: {} }), null);
 });
 
+test("theme library uses published images and can preview the actual mobile colors without one", async () => {
+  const { themePreviewPalette, previewImageUrl } = await nativeModule("runtime/src/plugins/themeLibrary/preview.ts", {});
+  const { marketplacePreview } = await nativeModule("runtime/src/lib/addons/themes/marketplace.ts", {});
+  assert.match(marketplacePreview("Pastel Blue"), /pastel-blue-1757164782881-preview\.png$/);
+  assert.equal(marketplacePreview("Love Chunnibiyo"), undefined);
+  const explicit = "https://themes.example/screenshots/theme.png";
+  assert.equal(previewImageUrl(null, "file:///path", explicit, marketplacePreview("Pastel Blue")), explicit);
+  assert.equal(previewImageUrl("https://user@themes.example/preview.png", "http://themes.example/preview.png"), undefined);
+  const palette = themePreviewPalette({
+    semanticColors: { CHAT_BACKGROUND: ["#fff4fa"], TEXT_DEFAULT: ["#332244"], BACKGROUND_BRAND: ["#9955aa"] },
+    rawColors: { PRIMARY_700: "#dccedd", PRIMARY_660: "#edddea" }
+  });
+  assert.deepEqual(JSON.parse(JSON.stringify(palette)), {
+    chat: "#fff4fa", sidebar: "#dccedd", panel: "#edddea", text: "#332244", accent: "#9955aa"
+  });
+});
+
 async function host(persisted, settings = {}) {
   const text = { darker: { raw: "BRAND_360", opacity: 1 }, light: { raw: "BRAND_360", opacity: 1 } };
   const icon = { darker: { raw: "BRAND_360", opacity: .5 } };

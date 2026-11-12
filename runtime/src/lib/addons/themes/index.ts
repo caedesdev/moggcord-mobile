@@ -14,6 +14,7 @@ import { applyAndroidAlphaKeys, normalizeToHex } from "./colors/parser";
 import { colorsPref } from "./colors/preferences";
 import { VendettaThemeManifest } from "./colors/types";
 import { updateBunnyColor } from "./colors/updater";
+import { archivedThemeUrl } from "./marketplace";
 
 export interface VdThemeInfo {
     id: string;
@@ -134,6 +135,8 @@ export async function downloadTheme(url: string): Promise<VendettaThemeManifest>
 
     const { response: res, text } = download;
     if (res.status === 404 || res.status === 410) {
+        const archive = archivedThemeUrl(source);
+        if (archive) return downloadTheme(archive);
         throw new ThemeDownloadError("gone", t("The theme isn't at this link anymore ({status}). Its author may have moved or deleted it.", { status: res.status }));
     }
     if (!res.ok) throw new ThemeDownloadError("refused", t("{host} didn't send the theme ({status}).", { host: hostOf(source), status: res.status }));

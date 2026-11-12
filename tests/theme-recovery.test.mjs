@@ -45,7 +45,7 @@ test("missing or corrupt appearance data does not prevent the app from continuin
   await assert.doesNotReject(recoverDiscordTheme);
 });
 
-async function themeHost({ supported, mobile = false, start = () => () => {} }) {
+async function themeHost({ supported, mobile = false, start = () => () => {}, fetchThemeFile }) {
   const saved = {};
   const settings = {};
   const writes = [];
@@ -81,14 +81,31 @@ async function themeHost({ supported, mobile = false, start = () => () => {} }) 
     "./colors/mobile-manifest": { MAX_THEME_LENGTH: 256 * 1024, mobileColorManifest: value => value },
     "./colors/parser": { normalizeToHex: value => value },
     "./colors/preferences": { colorsPref: {} },
-    "./colors/updater": { updateBunnyColor: value => hostUpdates.push(value) }
+    "./colors/updater": { updateBunnyColor: value => hostUpdates.push(value) },
+    "./marketplace": await nativeModule("runtime/src/lib/addons/themes/marketplace.ts", {})
   }, {
     AbortController,
     clearTimeout() {},
-    fetch: async () => ({ ok: true, text: async () => JSON.stringify(manifest) })
+    fetch: fetchThemeFile ?? (async () => ({ ok: true, text: async () => JSON.stringify(manifest) }))
   });
   return { module, settings, writes, hostUpdates, manifest };
 }
+
+test("a moved marketplace theme installs from its archive and keeps its original identity", async () => {
+  const original = "https://raw.githubusercontent.com/luzikii/vendetta/main/CP2077HUD.json";
+  const archive = "https://raw.githubusercontent.com/kmmiio99o/theme-marketplace/main/themes/approved/cyberpunk-2077-1757195689697.json";
+  const requests = [];
+  const { module } = await themeHost({ mobile: true, fetchThemeFile: async url => {
+    requests.push(url);
+    if (url === original) return { ok: false, status: 404 };
+    assert.equal(url, archive);
+    return { ok: true, text: async () => '{"spec":2,"name":"Cyberpunk 2077","rawColors":{"PRIMARY_600":"#232323"}}' };
+  } });
+  await module.installTheme(original);
+  assert.deepEqual(requests, [original, archive]);
+  assert.equal(module.themes[original].data.name, "Cyberpunk 2077");
+  assert.equal(module.themes[archive], undefined);
+});
 
 test("a loader without a theme resolver cannot apply or persist a custom theme", async () => {
   const { module, writes, hostUpdates, manifest } = await themeHost({ supported: false });
