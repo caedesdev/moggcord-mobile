@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Moggcord for Android</string>
-    <string name="launcher_description">Install Moggcord alongside your existing Discord app.</string>
+    <string name="launcher_masthead_title">Moggcord\nfor Android</string>
     <string name="discord">Discord</string>
     <string name="discord_found">Installed</string>
-    <string name="discord_version">Installed · %1$s</string>
+    <string name="discord_version">%1$s · Installed</string>
     <string name="discord_missing">Install Discord to get started.</string>
     <string name="get_discord">Get Discord</string>
     <string name="install_in_discord">Install in Discord</string>
