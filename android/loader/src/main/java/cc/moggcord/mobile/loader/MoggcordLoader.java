@@ -5,6 +5,7 @@
 package cc.moggcord.mobile.loader;
 
 import android.content.res.AssetManager;
+import android.content.res.Resources;
 import android.util.Log;
 
 import java.io.File;
@@ -38,6 +39,7 @@ public final class MoggcordLoader implements IXposedHookZygoteInit, IXposedHookL
     private final Set<Object> initialized = Collections.newSetFromMap(new WeakHashMap<>());
     private String modulePath;
     private boolean hooked;
+    private boolean resourceLookupHooked;
 
     @Override
     public void initZygote(StartupParam param) {
@@ -47,7 +49,15 @@ public final class MoggcordLoader implements IXposedHookZygoteInit, IXposedHookL
     @Override
     public synchronized void handleLoadPackage(XC_LoadPackage.LoadPackageParam param) {
         if (hooked || modulePath == null || !param.packageName.equals(param.processName)
-                || !("com.discord".equals(param.packageName) || "cc.moggcord.mobile.discord".equals(param.packageName))) return;
+                || !(DiscordPackage.ORIGINAL.equals(param.packageName) || DiscordPackage.MOGGCORD.equals(param.packageName))) return;
+        if (DiscordPackage.MOGGCORD.equals(param.packageName) && !resourceLookupHooked) {
+            try {
+                hookResourceLookup();
+                resourceLookupHooked = true;
+            } catch (Throwable error) {
+                Log.w(TAG, "Could not attach the Discord resource name fallback.", error);
+            }
+        }
         try {
             Class<?> delegate = findDelegate(param.classLoader);
             Method file = delegate.getDeclaredMethod(FILE_LOADER, String.class, String.class, boolean.class);
@@ -80,6 +90,30 @@ public final class MoggcordLoader implements IXposedHookZygoteInit, IXposedHookL
         } catch (Throwable error) {
             Log.w(TAG, "Could not attach the Moggcord loader. Discord can continue.", error);
         }
+    }
+
+    private static void hookResourceLookup() throws NoSuchMethodException {
+        Method lookup = Resources.class.getMethod("getIdentifier", String.class, String.class, String.class);
+        XposedBridge.hookMethod(lookup, new XC_MethodHook() {
+            @Override
+            protected void afterHookedMethod(MethodHookParam call) throws Throwable {
+                if (call.hasThrowable() || !Integer.valueOf(0).equals(call.getResult())
+                        || !(call.args[0] instanceof String name) || name.isEmpty()) return;
+
+                int separator = name.indexOf(':');
+                Object requestedPackage = separator >= 0 ? name.substring(0, separator) : call.args[2];
+                String alternatePackage;
+                // Discord can ask for com.discord explicitly. Older clones may still have that resource table name.
+                if (DiscordPackage.ORIGINAL.equals(requestedPackage)) alternatePackage = DiscordPackage.MOGGCORD;
+                else if (DiscordPackage.MOGGCORD.equals(requestedPackage)) alternatePackage = DiscordPackage.ORIGINAL;
+                else return;
+
+                String alternateName = separator >= 0 ? alternatePackage + name.substring(separator) : name;
+                Object result = XposedBridge.invokeOriginalMethod(lookup, call.thisObject,
+                    new Object[] { alternateName, call.args[1], alternatePackage });
+                if (result instanceof Integer id && id != 0) call.setResult(id);
+            }
+        });
     }
 
     private static Class<?> findDelegate(ClassLoader loader) throws Exception {
