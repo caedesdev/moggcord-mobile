@@ -1,4 +1,4 @@
-import { readFile, stat } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
@@ -63,6 +63,12 @@ await build({
   ],
   banner: { js: "/* Moggcord Mobile. Framework and plugin notices are in runtime/LICENSE and NOTICE.md. */" }
 });
-const { size } = await stat(new URL("../" + output, import.meta.url));
+const bundlePath = new URL("../" + output, import.meta.url);
+// esbuild's ASCII output leaves Unicode in regular-expression literals.
+// Escape those code units so the installed Android updater can verify the file byte-for-byte.
+const source = await readFile(bundlePath, "utf8");
+const ascii = source.replace(/[^\x00-\x7f]/g, character => "\\u" + character.charCodeAt(0).toString(16).padStart(4, "0"));
+if (ascii !== source) await writeFile(bundlePath, ascii);
+const size = Buffer.byteLength(ascii);
 if (!size || size > 8 * 1024 * 1024) throw new Error("Unexpected mobile bundle size");
 console.log(output + " · " + size + " bytes");

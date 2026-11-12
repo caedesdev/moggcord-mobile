@@ -32,6 +32,8 @@ if public != base64.b64decode(pinned):
 bundle = (root / "dist/moggcord-mobile.js").read_bytes()
 if not 0 < len(bundle) <= 8 * 1024 * 1024:
     raise SystemExit("The built runtime has an invalid size.")
+if args.platform == "android" and not bundle.isascii():
+    raise SystemExit("Rebuild the runtime in ASCII for the installed Android updater.")
 revision = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip()
 if args.platform == "ios":
     loader_version = int(re.search(r"moggcord_loader_version\s*=\s*(\d+)", (root / "ios/LoaderVersion.h").read_text())[1])
