@@ -174,6 +174,7 @@ public final class LauncherActivity extends Activity {
     private static void setMessage(int text, String error) {
         message = text;
         detail = error;
+        InstallProgress.onLauncherMessage(text, installing);
         if (foreground != null) foreground.refresh();
     }
 

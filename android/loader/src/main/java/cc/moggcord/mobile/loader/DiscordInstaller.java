@@ -55,16 +55,23 @@ final class DiscordInstaller {
             File keyFile = new File(context.getNoBackupFilesDir(), "discord-install.keystore");
             String password = signingPassword(context);
             prepareSigningKey(keyFile, password.toCharArray());
-            List<File> inputs = new ArrayList<>();
-            inputs.add(prepareApk(work, discord.sourceDir, "base.apk"));
+            List<File> sources = new ArrayList<>();
+            sources.add(new File(discord.sourceDir));
             if (discord.splitSourceDirs != null) {
-                for (int i = 0; i < discord.splitSourceDirs.length; i++) {
-                    inputs.add(prepareApk(work, discord.splitSourceDirs[i], "split_" + i + ".apk"));
-                }
+                for (String split : discord.splitSourceDirs) sources.add(new File(split));
+            }
+            var copying = InstallProgress.copying(sources.stream().mapToLong(File::length).sum());
+            List<File> inputs = new ArrayList<>();
+            for (int i = 0; i < sources.size(); i++) {
+                String name = i == 0 ? "base.apk" : "split_" + (i - 1) + ".apk";
+                inputs.add(prepareApk(work, sources.get(i), name, copying));
             }
 
             List<File> outputs = new ApkPatcher(new Logger() {
                 @Override public void d(String message) { Log.d(TAG, message); }
+                @Override public void stage(Stage stage, int index, int total) {
+                    InstallProgress.patching(stage, index, total);
+                }
                 @Override public void i(String message) { Log.i(TAG, message); }
                 @Override public void e(String message) { Log.e(TAG, message); }
             }, PatchSpec.builder()
@@ -92,24 +99,31 @@ final class DiscordInstaller {
         }
     }
 
-    private static File prepareApk(Path work, String source, String name) throws IOException {
-        File copy = Files.copy(new File(source).toPath(), work.resolve(name)).toFile();
-        DiscordPackage.rename(copy);
-        return copy;
+    private static File prepareApk(Path work, File source, String name, InstallProgress.Transfer copying) throws IOException {
+        Path copy = work.resolve(name);
+        try (var input = new FileInputStream(source); var output = Files.newOutputStream(copy)) {
+            copying.copy(input, output);
+        }
+        File apk = copy.toFile();
+        DiscordPackage.rename(apk);
+        return apk;
     }
 
     private static void commit(Context context, List<File> apks, Runnable awaitingConfirmation) throws IOException {
         PackageInstaller installer = context.getPackageManager().getPackageInstaller();
         PackageInstaller.SessionParams params = new PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL);
         params.setAppPackageName(DiscordPackage.MOGGCORD);
-        params.setSize(apks.stream().mapToLong(File::length).sum());
+        long size = apks.stream().mapToLong(File::length).sum();
+        params.setSize(size);
         if (Build.VERSION.SDK_INT >= 31) params.setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_REQUIRED);
         int id = installer.createSession(params);
         boolean committed = false;
         try (PackageInstaller.Session session = installer.openSession(id)) {
+            var staging = InstallProgress.staging(size);
             for (File apk : apks) {
-                try (var output = session.openWrite(apk.getName(), 0, apk.length())) {
-                    Files.copy(apk.toPath(), output);
+                try (var input = new FileInputStream(apk);
+                     var output = session.openWrite(apk.getName(), 0, apk.length())) {
+                    staging.copy(input, output);
                     session.fsync(output);
                 }
             }
