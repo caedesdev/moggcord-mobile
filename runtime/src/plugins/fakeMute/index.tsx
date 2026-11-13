@@ -9,12 +9,14 @@ import { useProxy } from "@core/vendetta/storage";
 import { findAssetId } from "@lib/api/assets";
 import { registerCommand } from "@lib/api/commands";
 import { ApplicationCommandOptionType } from "@lib/api/commands/types";
-import { before } from "@lib/api/patcher";
+import { after, before } from "@lib/api/patcher";
 import { showToast } from "@lib/ui/toasts";
 import { messageUtil } from "@metro/common";
+import { Platform } from "react-native";
 
 import { definePlugin, onSettingChange } from "../api";
-import { addChatButton, getChatInputActionButton, getStore, moduleAt } from "../common";
+import { addChatButton, currentUserId, getChatInputActionButton, getStore, moduleAt } from "../common";
+import { myVoiceChannel } from "../shared/calls";
 import { SlashedIcon } from "../silentTyping";
 import { installFakeDeafenControls } from "./controls";
 
@@ -28,6 +30,7 @@ interface VoiceStatePayload {
 
 const GATEWAY_SOCKET = "modules/gateway/GatewaySocket.tsx";
 const GATEWAY_SINGLETON = "modules/gateway/GatewaySocketSingleton.tsx";
+const LOCAL_VOICE_STATUS = "modules/video_calls/useLocalSelfMuteDeaf.tsx";
 const icon = (name: string) => () => moduleAt(`design/components/Icon/native/redesign/generated/${name}.tsx`)?.[name];
 const MicrophoneIcon = icon("MicrophoneIcon");
 const HeadphonesIcon = icon("HeadphonesIcon");
@@ -73,22 +76,51 @@ const plugin = definePlugin({
         const proto = GatewaySocket?.prototype;
         if (typeof proto?.voiceStateUpdate !== "function") throw new Error("Discord's gateway socket wasn't found");
 
-        const unpatch = before("voiceStateUpdate", proto, function (this: any, args: any[]) {
+        const android = Platform.OS === "android";
+        // Like the desktop Ghost button, start each Android session with Fake Deafen off.
+        if (android && store.fakeDeafen) store.fakeDeafen = false;
+
+        const unpatch = before("voiceStateUpdate", proto, function (this: any, [state, ...args]: any[]) {
             socket = this;
-            const state = args[0] as VoiceStatePayload;
             if (!state || typeof state !== "object") return;
             lastState = { ...state };
             if (!state.channelId) return;
+            if (!store.fakeMute && !(store.fakeDeafen && state.selfMute)) return;
             const patched = { ...state };
             if (store.fakeMute) patched.selfMute = true;
             if (store.fakeDeafen && state.selfMute) patched.selfDeaf = true;
-            return [patched];
+            return [patched, ...args];
         });
+
+        if (android) {
+            const voiceStatus = moduleAt(LOCAL_VOICE_STATUS);
+            if (typeof voiceStatus?.withLocalSelfMuteDeaf === "function") {
+                // Android replaces the gateway flags with real audio flags when it draws your own row.
+                // Change the displayed copy only. Discord uses the actual flags for the mic and headphones.
+                const unpatchStatus = after("withLocalSelfMuteDeaf", voiceStatus, ([, local], state) => {
+                    if (store.fakeDeafen && state?.selfMute && !state.selfDeaf &&
+                        typeof state.merge === "function" &&
+                        local?.sessionId && state.sessionId === local.sessionId &&
+                        state.userId === currentUserId() && state.channelId === myVoiceChannel()) {
+                        return state.merge({ selfDeaf: true });
+                    }
+                });
+                cleanup(() => {
+                    unpatchStatus();
+                    if (store.fakeDeafen) getStore("VoiceStateStore")?.emitChange?.();
+                });
+            } else {
+                logger.warn("Couldn't find Discord's call status renderer");
+            }
+        }
 
         cleanup(
             installFakeDeafenControls(plugin, () => {
-                plugin.store.fakeDeafen = !plugin.store.fakeDeafen;
-                showToast(plugin.store.fakeDeafen ? "Fake Deafen enabled" : "Fake Deafen disabled", findAssetId("HeadphonesSlashIcon"));
+                const wasEnabled = store.fakeDeafen;
+                set("fakeDeafen");
+                if (store.fakeDeafen !== wasEnabled) {
+                    showToast(store.fakeDeafen ? t("Fake Deafen enabled") : t("Fake Deafen disabled"), findAssetId("HeadphonesSlashIcon"));
+                }
             }),
             () => {
                 // Unpatched first, so the voice server is told the real state again
@@ -99,7 +131,24 @@ const plugin = definePlugin({
             },
             // Switches in the settings page apply to the current call too
             onSettingChange(store, key => {
-                if (key === "fakeMute" || key === "fakeDeafen") resend(logger);
+                if (key !== "fakeMute" && key !== "fakeDeafen") return;
+                if (android && key === "fakeDeafen" && store.fakeDeafen) {
+                    if (!myVoiceChannel()) {
+                        store.fakeDeafen = false;
+                        showToast(t("Join a voice call to use Fake Deafen"), findAssetId("HeadphonesSlashIcon"));
+                        return;
+                    }
+                    try {
+                        prepareAndroidAudio();
+                    } catch (error) {
+                        logger.warn("Couldn't mute the microphone for Fake Deafen", error);
+                        store.fakeDeafen = false;
+                        showToast(t("Fake Deafen couldn't mute your microphone"), findAssetId("CircleXIcon-primary"));
+                        return;
+                    }
+                }
+                resend(logger);
+                if (android && key === "fakeDeafen") getStore("VoiceStateStore")?.emitChange?.();
             }),
             addChatButton({
                 key: "fake-mute",
@@ -142,35 +191,59 @@ function booleanOption() {
     } as any;
 }
 
+function prepareAndroidAudio() {
+    const media = getStore("MediaEngineStore");
+    if (typeof media?.isSelfMute !== "function" || typeof media.isSelfDeaf !== "function") {
+        throw new Error("Discord's audio settings weren't found");
+    }
+    const deafened = media.isSelfDeaf();
+    if (media.isSelfMute() && !deafened) return;
+
+    const audio = moduleAt("actions/AudioActionCreators.tsx");
+    if (typeof audio?.setSelfMute !== "function" || (deafened && typeof audio.toggleSelfDeaf !== "function")) {
+        throw new Error("Discord's audio controls weren't found");
+    }
+    audio.setSelfMute("default", true, false);
+    // Desktop also moves from full mute to listening with the microphone muted.
+    if (!media.isSelfMute() || (deafened && !media.getSettings?.()?.mute)) {
+        throw new Error("Discord did not apply the microphone mute");
+    }
+    if (deafened) audio.toggleSelfDeaf({ syncRemote: false });
+}
+
 /** The voice state from Discord's stores, for a call that started before the plugin did */
 function currentState(channelId?: string): VoiceStatePayload | null {
     if (!channelId) return null;
     const media = getStore("MediaEngineStore");
-    const selfMute = media?.isSelfMute?.();
-    const selfDeaf = media?.isSelfDeaf?.();
-    if (typeof selfMute !== "boolean" || typeof selfDeaf !== "boolean") return null;
+    if (typeof media?.isSelfMute !== "function" || typeof media.isSelfDeaf !== "function") return null;
+    const selfVideo = media.isVideoEnabled?.();
     return {
-        guildId: getStore("ChannelStore")?.getChannel?.(channelId)?.guild_id ?? null,
         channelId,
-        selfMute,
-        selfDeaf,
-        selfVideo: !!media?.isVideoEnabled?.(),
+        selfMute: !!media.isSelfMute(),
+        selfDeaf: !!media.isSelfDeaf(),
+        ...(typeof selfVideo === "boolean" && { selfVideo }),
     };
 }
 
 /** Sends the voice state again, so a change applies to the call you're in right away */
 function resend(logger?: { warn(...a: any[]): void; }) {
+    const android = Platform.OS === "android";
     const singleton = moduleAt(GATEWAY_SINGLETON);
-    const target = [singleton?.socket, singleton?.default, socket]
+    const activeSocket = android ? getStore("GatewayConnectionStore")?.getSocket?.() : undefined;
+    const target = [activeSocket, singleton?.socket, singleton?.default, socket]
         .find(candidate => typeof candidate?.voiceStateUpdate === "function");
     const selected = getStore("SelectedChannelStore");
-    const channelId = selected?.getVoiceChannelId?.();
+    const channelId = myVoiceChannel();
     if (typeof selected?.getVoiceChannelId === "function" && !channelId) return;
-    const state = lastState?.channelId && (!channelId || lastState.channelId === channelId)
-        ? lastState : currentState(channelId);
+    const cached = lastState?.channelId && (!channelId || lastState.channelId === channelId) ? lastState : null;
+    const live = android || !cached ? currentState(channelId) : null;
+    const state = live ? { ...cached, ...live } : cached;
     if (!target || !state?.channelId) return;
     try {
-        target.voiceStateUpdate({ ...state });
+        target.voiceStateUpdate({
+            ...state,
+            guildId: state.guildId ?? getStore("ChannelStore")?.getChannel?.(state.channelId)?.guild_id ?? null,
+        });
     } catch (e) {
         logger?.warn("Couldn't update the voice state", e);
     }

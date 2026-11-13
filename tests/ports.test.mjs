@@ -202,29 +202,61 @@ test("the camera slot uses the fake control without changing other call buttons"
   assert.equal(camera.render(), "camera");
 });
 
-for (const socketExport of ["socket", "default"]) {
-  test(`Fake Deafen refreshes an already connected call through the ${socketExport} socket export`, async () => {
-    let channel = "existing-call", muted = true;
+for (const [platform, socketExport] of [["ios", "socket"], ["ios", "default"], ["android", "store"]]) {
+  test(`Fake Deafen updates ${platform} calls through the ${socketExport} gateway export`, async () => {
+    const android = platform === "android";
+    let channel = "existing-call", muted = !android, deafened = false;
+    let refreshes = 0;
     const updates = [], cleanups = [];
     class GatewaySocket {
-      voiceStateUpdate(state) { updates.push(state); }
+      voiceStateUpdate(state, extra) { updates.push({ ...state, extra }); }
     }
     const connection = new GatewaySocket();
+    const settings = { mute: muted };
+    const audio = {
+      setSelfMute(context, value, playSound) {
+        assert.equal(context, "default");
+        assert.equal(playSound, false);
+        settings.mute = muted = value;
+      },
+      toggleSelfDeaf(options) {
+        assert.equal(options.syncRemote, false);
+        assert.equal(settings.mute, true);
+        deafened = !deafened;
+      }
+    };
+    const icons = { withLocalSelfMuteDeaf: state => state };
     const stores = {
       SelectedChannelStore: { getVoiceChannelId: () => channel },
       ChannelStore: { getChannel: id => ({ guild_id: id + "-server" }) },
-      MediaEngineStore: { isSelfMute: () => muted, isSelfDeaf: () => false, isVideoEnabled: () => false }
+      GatewayConnectionStore: android ? { getSocket: () => connection } : undefined,
+      MediaEngineStore: { isSelfMute: () => muted || deafened, isSelfDeaf: () => deafened, isVideoEnabled: () => false, getSettings: () => settings },
+      VoiceStateStore: { emitChange: () => { refreshes++; } },
     };
     let toggle, changed;
-    const store = { fakeDeafen: false, fakeMute: false, button: "none" };
+    const store = new Proxy({ fakeDeafen: android, fakeMute: false, button: "none" }, {
+      set(target, key, value) {
+        target[key] = value;
+        changed?.(key);
+        return true;
+      }
+    });
     const plugin = await port("fakeMute", {
       "@core/i18n": { t: text => text, tx: text => text },
       "react/jsx-runtime": {},
+      "react-native": { Platform: { OS: platform } },
       "@core/vendetta/storage": {},
       "@lib/api/assets": { findAssetId() {} },
       "@lib/api/commands": { registerCommand: () => () => {} },
       "@lib/api/commands/types": { ApplicationCommandOptionType: { BOOLEAN: 5 } },
-      "@lib/api/patcher": { before(key, target, patch) {
+      "@lib/api/patcher": { after(key, target, patch) {
+        const original = target[key];
+        target[key] = (...args) => {
+          const result = original(...args);
+          return patch(args, result) ?? result;
+        };
+        return () => { target[key] = original; };
+      }, before(key, target, patch) {
         const original = target[key];
         target[key] = function (...args) { return original.apply(this, patch.call(this, args) ?? args); };
         return () => { target[key] = original; };
@@ -233,37 +265,69 @@ for (const socketExport of ["socket", "default"]) {
       "@metro/common": {},
       "../api": {
         definePlugin: definition => ({ ...definition, store }),
-        onSettingChange(_store, callback) { changed = callback; return () => {}; }
+        onSettingChange(_store, callback) { changed = callback; return () => { changed = undefined; }; }
       },
       "../common": {
         addChatButton: () => () => {},
+        currentUserId: () => "me",
         getStore: name => stores[name],
-        moduleAt: path => path.includes("Singleton") ? { [socketExport]: connection } : { default: GatewaySocket }
+        moduleAt(path) {
+          if (path.includes("Singleton")) return android ? undefined : { [socketExport]: connection };
+          if (path.includes("AudioActionCreators")) return audio;
+          if (path.includes("useLocalSelfMuteDeaf")) return icons;
+          return { default: GatewaySocket };
+        }
       },
+      "../shared/calls": { myVoiceChannel: () => channel },
       "../silentTyping": {},
       "./controls": { installFakeDeafenControls(_plugin, callback) { toggle = callback; return () => {}; } }
     });
-    plugin.start({ store, cleanup: (...callbacks) => cleanups.push(...callbacks) });
+    plugin.start({ store, cleanup: (...callbacks) => cleanups.push(...callbacks), logger: { warn: assert.fail } });
+    assert.equal(store.fakeDeafen, false);
+    assert.equal(muted, !android);
     toggle();
-    changed("fakeDeafen");
     assert.equal(updates.length, 1);
     assert.equal(updates[0].channelId, channel);
     assert.equal(updates[0].selfMute, true);
     assert.equal(updates[0].selfDeaf, true);
+    const row = {
+      channelId: channel, userId: "me", sessionId: "session", selfMute: true, selfDeaf: false,
+      merge(update) { return { ...this, ...update }; }
+    };
+    const local = { sessionId: row.sessionId };
+    assert.equal(icons.withLocalSelfMuteDeaf(row, local).selfDeaf, android);
+    assert.equal(icons.withLocalSelfMuteDeaf(row, { sessionId: "different" }), row);
+    const other = { ...row, userId: "someone-else" };
+    assert.equal(icons.withLocalSelfMuteDeaf(other, local), other);
+    assert.equal(row.selfDeaf, false);
     toggle();
-    changed("fakeDeafen");
     assert.equal(updates[1].selfDeaf, false);
-    muted = false;
+    assert.equal(icons.withLocalSelfMuteDeaf(row, local).selfDeaf, false);
+    assert.equal(refreshes, android ? 2 : 0);
+    muted = settings.mute = false;
     channel = "other-call";
+    deafened = android;
     toggle();
-    changed("fakeDeafen");
     assert.equal(updates[2].channelId, channel);
-    assert.equal(updates[2].selfMute, false);
-    assert.equal(updates[2].selfDeaf, false);
+    assert.equal(updates[2].selfMute, android);
+    assert.equal(updates[2].selfDeaf, android);
+    assert.equal(deafened, false);
+    if (android) {
+      const payload = Object.freeze({ channelId: channel, guildId: "server", selfMute: true, selfDeaf: false, flags: 4 });
+      connection.voiceStateUpdate(payload, "preserved");
+      assert.equal(payload.selfDeaf, false);
+      assert.equal(updates.at(-1).extra, "preserved");
+      muted = false;
+      toggle();
+      assert.equal(updates.at(-1).selfMute, false);
+      assert.equal(updates.at(-1).selfDeaf, false);
+      assert.equal(updates.at(-1).flags, 4);
+    }
+    const previous = updates.length;
     channel = undefined;
-    changed("fakeDeafen");
-    cleanups.forEach(stop => stop());
-    assert.equal(updates.length, 3);
+    store.fakeDeafen = false;
+    cleanups.reverse().forEach(stop => stop());
+    assert.equal(updates.length, previous);
   });
 }
 
