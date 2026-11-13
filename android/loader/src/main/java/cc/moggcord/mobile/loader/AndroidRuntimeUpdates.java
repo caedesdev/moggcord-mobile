@@ -4,7 +4,7 @@
  */
 package cc.moggcord.mobile.loader;
 
-import android.app.Application;
+import android.content.Context;
 import android.util.Log;
 
 import java.io.File;
@@ -35,10 +35,17 @@ final class AndroidRuntimeUpdates {
     record Selection(String prefix, byte[] source) {}
     private record Update(String version, String hash, byte[] source) {}
 
-    static Selection select(Application app) throws Exception {
-        var info = app.getPackageManager().getPackageInfo(app.getPackageName(), 0);
-        return select(app.getFilesDir().getCanonicalFile(), Long.toString(info.getLongVersionCode()),
-            BuildConfig.RUNTIME_VERSION, BuildConfig.UPDATE_PUBLIC_KEY);
+    static Selection select(Context context) throws Exception {
+        var info = context.getPackageManager().getPackageInfo(context.getPackageName(), 0);
+        File filesDir = context.getFilesDir().getCanonicalFile();
+        try {
+            return select(filesDir, Long.toString(info.getLongVersionCode()),
+                BuildConfig.RUNTIME_VERSION, BuildConfig.UPDATE_PUBLIC_KEY);
+        } catch (Exception error) {
+            Log.w(TAG, "Could not recover Android update files. Using the embedded runtime.", error);
+            return selection(filesDir, Long.toString(info.getLongVersionCode()), BuildConfig.UPDATE_PUBLIC_KEY,
+                "Moggcord could not read the previous update. Try checking for updates again.", null, null);
+        }
     }
 
     static synchronized Selection select(File filesDir, String build, String embeddedVersion, String publicKey) throws Exception {
@@ -71,10 +78,14 @@ final class AndroidRuntimeUpdates {
             staged = null;
         }
 
+        return selection(filesDir, build, publicKey, recovery, staged, staged == null ? active : staged);
+    }
+
+    private static Selection selection(File filesDir, String build, String publicKey, String recovery, Update staged,
+                                       Update selected) throws Exception {
         var config = new JSONObject().put("apiVersion", PROTOCOL).put("publicKey", publicKey)
             .put("filesDir", filesDir.getPath()).put("discordBuild", build).put("recoveryNotice", recovery);
         if (staged != null) config.put("candidateVersion", staged.version).put("candidateHash", staged.hash);
-        Update selected = staged == null ? active : staged;
         return new Selection("globalThis.__MOGGCORD_ANDROID_UPDATES__=" + config + ";\n",
             selected == null ? null : selected.source);
     }

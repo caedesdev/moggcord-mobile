@@ -208,6 +208,14 @@ for (const [platform, socketExport] of [["ios", "socket"], ["ios", "default"], [
     let channel = "existing-call", muted = !android, deafened = false;
     let refreshes = 0;
     const updates = [], cleanups = [];
+    const audioQueue = [];
+    const flushAudio = async () => {
+      await new Promise(resolve => setImmediate(resolve));
+      while (audioQueue.length) {
+        audioQueue.splice(0).forEach(run => run());
+        await new Promise(resolve => setImmediate(resolve));
+      }
+    };
     class GatewaySocket {
       voiceStateUpdate(state, extra) { updates.push({ ...state, extra }); }
     }
@@ -217,12 +225,12 @@ for (const [platform, socketExport] of [["ios", "socket"], ["ios", "default"], [
       setSelfMute(context, value, playSound) {
         assert.equal(context, "default");
         assert.equal(playSound, false);
-        settings.mute = muted = value;
+        audioQueue.push(() => { settings.mute = muted = value; });
       },
       toggleSelfDeaf(options) {
         assert.equal(options.syncRemote, false);
         assert.equal(settings.mute, true);
-        deafened = !deafened;
+        audioQueue.push(() => { deafened = !deafened; });
       }
     };
     const icons = { withLocalSelfMuteDeaf: state => state };
@@ -262,7 +270,7 @@ for (const [platform, socketExport] of [["ios", "socket"], ["ios", "default"], [
         return () => { target[key] = original; };
       } },
       "@lib/ui/toasts": { showToast() {} },
-      "@metro/common": {},
+      "@metro/common": { FluxDispatcher: { wait: callback => audioQueue.push(callback) } },
       "../api": {
         definePlugin: definition => ({ ...definition, store }),
         onSettingChange(_store, callback) { changed = callback; return () => { changed = undefined; }; }
@@ -273,7 +281,7 @@ for (const [platform, socketExport] of [["ios", "socket"], ["ios", "default"], [
         getStore: name => stores[name],
         moduleAt(path) {
           if (path.includes("Singleton")) return android ? undefined : { [socketExport]: connection };
-          if (path.includes("AudioActionCreators")) return audio;
+          if (path.includes("AudioActionCreators")) return { default: audio };
           if (path.includes("useLocalSelfMuteDeaf")) return icons;
           return { default: GatewaySocket };
         }
@@ -286,6 +294,11 @@ for (const [platform, socketExport] of [["ios", "socket"], ["ios", "default"], [
     assert.equal(store.fakeDeafen, false);
     assert.equal(muted, !android);
     toggle();
+    if (android) {
+      assert.equal(updates.length, 0);
+      assert.equal(muted, false);
+      await flushAudio();
+    }
     assert.equal(updates.length, 1);
     assert.equal(updates[0].channelId, channel);
     assert.equal(updates[0].selfMute, true);
@@ -308,6 +321,7 @@ for (const [platform, socketExport] of [["ios", "socket"], ["ios", "default"], [
     channel = "other-call";
     deafened = android;
     toggle();
+    if (android) await flushAudio();
     assert.equal(updates[2].channelId, channel);
     assert.equal(updates[2].selfMute, android);
     assert.equal(updates[2].selfDeaf, android);
@@ -322,6 +336,12 @@ for (const [platform, socketExport] of [["ios", "socket"], ["ios", "default"], [
       assert.equal(updates.at(-1).selfMute, false);
       assert.equal(updates.at(-1).selfDeaf, false);
       assert.equal(updates.at(-1).flags, 4);
+      deafened = true;
+      toggle();
+      toggle();
+      await flushAudio();
+      assert.equal(deafened, true);
+      assert.equal(store.fakeDeafen, false);
     }
     const previous = updates.length;
     channel = undefined;

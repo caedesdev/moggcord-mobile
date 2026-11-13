@@ -51,7 +51,7 @@ const androidUpdates = (globalThis as any).__MOGGCORD_ANDROID_UPDATES__;
 const nativeUpdater = (globalThis as any).__MOGGCORD_UPDATER__ ?? (androidUpdates &&
     require("../../../shared/android-updates").createAndroidUpdaterBridge(androidUpdates, NativeFileModule, writeDocument));
 const updater = createMobileUpdater({ version: MOGGCORD_MOBILE_VERSION, bridge: nativeUpdater,
-    reload: reloadDiscord });
+    reload: reloadDiscord, android: RN.Platform?.OS === "android" });
 updater.subscribe(announce);
 export const confirmRuntimeUpdate = () => nativeUpdater?.confirm(MOGGCORD_MOBILE_VERSION);
 

@@ -10,13 +10,15 @@ function compare(a, b) {
 }
 
 /** Network reads stay in JS; signature verification, integrity and atomic installation stay in the native loader. */
-export function createMobileUpdater({ version, bridge, request = (...args) => fetch(...args), reload,
+export function createMobileUpdater({ version, bridge, android = false, request = (...args) => fetch(...args), reload,
   wait = ms => new Promise(resolve => setTimeout(resolve, ms)) }) {
   const platform = bridge?.platform;
   const supported = bridge?.apiVersion === 1 && ["ios", "android"].includes(platform) &&
     [bridge.verify, bridge.stage, bridge.confirm].every(method => typeof method === "function");
-  let state = { supported, phase: supported ? "idle" : "unsupported", version, availableVersion: "",
-    message: supported ? "Update plugins and Moggcord without reinstalling Discord." : "This loader does not support in-app updates yet.",
+  let state = { supported, platform, phase: supported ? "idle" : "unsupported", version, availableVersion: "",
+    message: supported ? "Update plugins and Moggcord without reinstalling Discord."
+      : android ? "Update the Android launcher and choose Reinstall Moggcord once to enable in-app updates."
+      : "This loader does not support in-app updates yet.",
     recoveryNotice: supported ? String(bridge.recoveryNotice || "") : "" };
   let available = null;
   const listeners = new Set();

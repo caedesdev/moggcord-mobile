@@ -11,7 +11,7 @@ import { registerCommand } from "@lib/api/commands";
 import { ApplicationCommandOptionType } from "@lib/api/commands/types";
 import { after, before } from "@lib/api/patcher";
 import { showToast } from "@lib/ui/toasts";
-import { messageUtil } from "@metro/common";
+import { FluxDispatcher, messageUtil } from "@metro/common";
 import { Platform } from "react-native";
 
 import { definePlugin, onSettingChange } from "../api";
@@ -79,6 +79,7 @@ const plugin = definePlugin({
         const android = Platform.OS === "android";
         // Like the desktop Ghost button, start each Android session with Fake Deafen off.
         if (android && store.fakeDeafen) store.fakeDeafen = false;
+        let audioRequest = 0;
 
         const unpatch = before("voiceStateUpdate", proto, function (this: any, [state, ...args]: any[]) {
             socket = this;
@@ -118,11 +119,12 @@ const plugin = definePlugin({
             installFakeDeafenControls(plugin, () => {
                 const wasEnabled = store.fakeDeafen;
                 set("fakeDeafen");
-                if (store.fakeDeafen !== wasEnabled) {
-                    showToast(store.fakeDeafen ? t("Fake Deafen enabled") : t("Fake Deafen disabled"), findAssetId("HeadphonesSlashIcon"));
+                if ((!android || wasEnabled) && store.fakeDeafen !== wasEnabled) {
+                    announceFakeDeafen(store.fakeDeafen);
                 }
             }),
             () => {
+                audioRequest++;
                 // Unpatched first, so the voice server is told the real state again
                 unpatch();
                 if (store.fakeMute || store.fakeDeafen) resend(logger);
@@ -132,20 +134,31 @@ const plugin = definePlugin({
             // Switches in the settings page apply to the current call too
             onSettingChange(store, key => {
                 if (key !== "fakeMute" && key !== "fakeDeafen") return;
+                const request = key === "fakeDeafen" ? ++audioRequest : audioRequest;
                 if (android && key === "fakeDeafen" && store.fakeDeafen) {
-                    if (!myVoiceChannel()) {
+                    const channelId = myVoiceChannel();
+                    if (!channelId) {
                         store.fakeDeafen = false;
                         showToast(t("Join a voice call to use Fake Deafen"), findAssetId("HeadphonesSlashIcon"));
                         return;
                     }
-                    try {
-                        prepareAndroidAudio();
-                    } catch (error) {
-                        logger.warn("Couldn't mute the microphone for Fake Deafen", error);
+                    const stillWanted = () => request === audioRequest && store.fakeDeafen && myVoiceChannel() === channelId;
+                    void prepareAndroidAudio(stillWanted).then(() => {
+                        if (request !== audioRequest || !store.fakeDeafen) return;
+                        if (!stillWanted()) {
+                            store.fakeDeafen = false;
+                            return;
+                        }
+                        resend(logger);
+                        getStore("VoiceStateStore")?.emitChange?.();
+                        announceFakeDeafen(true);
+                    }).catch(error => {
+                        if (request !== audioRequest || !store.fakeDeafen) return;
+                        logger.warn("Couldn't prepare Android audio for Fake Deafen", error);
                         store.fakeDeafen = false;
-                        showToast(t("Fake Deafen couldn't mute your microphone"), findAssetId("CircleXIcon-primary"));
-                        return;
-                    }
+                        showToast(t("Fake Deafen couldn't mute your microphone. Use the mic button and try again."), findAssetId("CircleXIcon-primary"));
+                    });
+                    return;
                 }
                 resend(logger);
                 if (android && key === "fakeDeafen") getStore("VoiceStateStore")?.emitChange?.();
@@ -191,7 +204,7 @@ function booleanOption() {
     } as any;
 }
 
-function prepareAndroidAudio() {
+async function prepareAndroidAudio(stillWanted: () => boolean) {
     const media = getStore("MediaEngineStore");
     if (typeof media?.isSelfMute !== "function" || typeof media.isSelfDeaf !== "function") {
         throw new Error("Discord's audio settings weren't found");
@@ -199,18 +212,27 @@ function prepareAndroidAudio() {
     const deafened = media.isSelfDeaf();
     if (media.isSelfMute() && !deafened) return;
 
-    const audio = moduleAt("actions/AudioActionCreators.tsx");
+    const audioModule = moduleAt("actions/AudioActionCreators.tsx");
+    const audio = audioModule?.default ?? audioModule;
     if (typeof audio?.setSelfMute !== "function" || (deafened && typeof audio.toggleSelfDeaf !== "function")) {
         throw new Error("Discord's audio controls weren't found");
     }
     audio.setSelfMute("default", true, false);
+    await new Promise<void>(resolve => FluxDispatcher.wait(resolve));
+    if (!stillWanted()) return;
     // Desktop also moves from full mute to listening with the microphone muted.
     if (!media.isSelfMute() || (deafened && !media.getSettings?.()?.mute)) {
         throw new Error("Discord did not apply the microphone mute");
     }
-    if (deafened) audio.toggleSelfDeaf({ syncRemote: false });
+    if (deafened && media.isSelfDeaf()) {
+        audio.toggleSelfDeaf({ syncRemote: false });
+        await new Promise<void>(resolve => FluxDispatcher.wait(resolve));
+    }
 }
 
+function announceFakeDeafen(enabled: boolean) {
+    showToast(enabled ? t("Fake Deafen enabled") : t("Fake Deafen disabled"), findAssetId("HeadphonesSlashIcon"));
+}
 /** The voice state from Discord's stores, for a call that started before the plugin did */
 function currentState(channelId?: string): VoiceStatePayload | null {
     if (!channelId) return null;
@@ -268,6 +290,7 @@ function FakeButton({ kind }: { kind: "fakeMute" | "fakeDeafen"; }) {
         onPress={() => {
             set(kind);
             const now = plugin.store[kind];
+            if (Platform.OS === "android" && kind === "fakeDeafen" && now) return;
             const text = kind === "fakeMute"
                 ? (now ? t("Fake mute is on") : t("Fake mute is off"))
                 : (now ? t("Fake deafen is on") : t("Fake deafen is off"));

@@ -5,13 +5,14 @@ import { base64 } from "@scure/base";
 
 const directory = "moggcord-updates/";
 const versionPattern = /^(0|[1-9]\d{0,5})\.(0|[1-9]\d{0,5})\.(0|[1-9]\d{0,5})$/;
-const samePath = (a, b) => a.replace(/^\/data\/data\//, "/data/user/0/").replace(/\/$/, "") === b;
+const normalizePath = path => path.replace(/^\/data\/data\//, "/data/user/0/").replace(/\/+$/, "");
 
 export function createAndroidUpdaterBridge(config, files, write) {
   if (config?.apiVersion !== 1 || typeof files?.writeFile !== "function") return;
   try {
     const documents = files.getConstants?.()?.DocumentsDirPath ?? files.DocumentsDirPath;
-    if (typeof documents !== "string" || !samePath(documents, config.filesDir)) return;
+    if (typeof documents !== "string" || typeof config.filesDir !== "string" ||
+        normalizePath(documents) !== normalizePath(config.filesDir)) return;
   } catch { return; }
 
   function verify(envelope) {

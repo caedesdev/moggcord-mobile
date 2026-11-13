@@ -1,6 +1,6 @@
 # In-app runtime updates
 
-Signed runtime updates work with iOS loaders starting at 0.4.0 and Android launchers starting at 0.4.14. On Android, install the new launcher and choose **Reinstall Moggcord** once to embed the updater in the Discord copy. **Settings → Moggcord updates → Update and restart** downloads the shared JavaScript runtime and reloads Discord. Updating Discord or changing the native loader still requires a new signed application.
+Signed runtime updates work with iOS loaders starting at 0.4.0 and Android launchers starting at 0.4.14. If the Android update card reports that the loader is unsupported, install launcher 0.4.19 or newer and choose **Reinstall Moggcord** once to update the loader in the Discord copy. Android checks for compatible updates when you first open **Settings**. **Moggcord updates → Update and restart** downloads the signed JavaScript runtime and reloads Discord. Updating Discord or changing the native loader still requires a new signed application.
 
 ## Distribution
 

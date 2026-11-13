@@ -156,6 +156,11 @@ export function createMobileScreen(React, RN, store, runtime) {
       ({ entries: await loadLibrary(section, communitySearch, { signal }), total: 0, next: 0 }));
 
     React.useEffect(() => {
+      if (tab === "Settings" && state.updater?.platform === "android" && state.updater.phase === "idle")
+        void runtime.checkForUpdates();
+    }, [tab, state.updater?.platform, state.updater?.phase]);
+
+    React.useEffect(() => {
       let mounted = true;
       const refresh = () => setState(runtime.snapshot());
       const unsubscribe = runtime.subscribe(refresh);

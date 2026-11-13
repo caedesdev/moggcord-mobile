@@ -5,6 +5,8 @@
 package cc.moggcord.mobile.loader;
 
 import android.app.AndroidAppHelper;
+import android.app.Instrumentation;
+import android.content.Context;
 import android.content.res.AssetManager;
 import android.content.res.Resources;
 import android.util.Log;
@@ -38,6 +40,7 @@ public final class MoggcordLoader implements IXposedHookZygoteInit, IXposedHookL
     private static final String FILE_LOADER = "loadScriptFromFile";
     private final Set<Object> initialized = Collections.newSetFromMap(new WeakHashMap<>());
     private String modulePath;
+    private volatile Context appContext;
     private boolean hooked;
     private boolean resourceLookupHooked;
 
@@ -64,6 +67,7 @@ public final class MoggcordLoader implements IXposedHookZygoteInit, IXposedHookL
             Method assets = delegate.getDeclaredMethod("loadScriptFromAssets", AssetManager.class, String.class, boolean.class);
             File cache = new File(param.appInfo.dataDir, "code_cache");
             PlatformIndicators.install();
+            captureAppContext(param.packageName);
             XC_MethodHook beforeHostBundle = new XC_MethodHook() {
                 @Override
                 protected void beforeHookedMethod(MethodHookParam call) {
@@ -73,14 +77,20 @@ public final class MoggcordLoader implements IXposedHookZygoteInit, IXposedHookL
                     try {
                         AndroidRuntimeUpdates.Selection update = null;
                         try {
-                            var app = AndroidAppHelper.currentApplication();
-                            if (app != null) update = AndroidRuntimeUpdates.select(app);
+                            Context context = appContext;
+                            if (context == null) context = AndroidAppHelper.currentApplication();
+                            if (context == null) {
+                                Log.w(TAG, "Android update storage isn't available during startup.");
+                            } else {
+                                update = AndroidRuntimeUpdates.select(context);
+                            }
                         } catch (Exception | LinkageError error) {
                             Log.w(TAG, "Could not read Android updates. Using the embedded runtime.", error);
                         }
                         String path = installPayload(cache, update).getAbsolutePath();
                         XposedBridge.invokeOriginalMethod(file, call.thisObject, new Object[] { path, path, call.args[2] });
-                        Log.i(TAG, "Loaded the embedded Moggcord payload.");
+                        Log.i(TAG, update != null && update.source() != null
+                            ? "Loaded a signed Moggcord update." : "Loaded the embedded Moggcord payload.");
                     } catch (Throwable error) {
                         Log.w(TAG, "Could not load Moggcord into this React Native runtime.", error);
                     }
@@ -96,6 +106,22 @@ public final class MoggcordLoader implements IXposedHookZygoteInit, IXposedHookL
             hooked = true;
         } catch (Throwable error) {
             Log.w(TAG, "Could not attach the Moggcord loader. Discord can continue.", error);
+        }
+    }
+
+    private void captureAppContext(String packageName) {
+        try {
+            Method create = Instrumentation.class.getMethod("newApplication", ClassLoader.class, String.class, Context.class);
+            XposedBridge.hookMethod(create, new XC_MethodHook() {
+                @Override
+                protected void beforeHookedMethod(MethodHookParam call) {
+                    Context context = (Context) call.args[2];
+                    // React Native can start while Android is still constructing the Application.
+                    if (packageName.equals(context.getPackageName())) appContext = context;
+                }
+            });
+        } catch (Exception | LinkageError error) {
+            Log.w(TAG, "Could not capture the early application context for Android updates.", error);
         }
     }
 

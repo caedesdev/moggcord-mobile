@@ -102,8 +102,8 @@ test("Android checks its own signed feed, verifies the download, then stages and
   const writes = [], requests = [];
   const bridge = createAndroidUpdaterBridge({ apiVersion: 1, discordBuild: "353011",
     publicKey: publicKey.export({ type: "spki", format: "der" }).subarray(-65).toString("base64"),
-    filesDir: "/data/user/0/cc.moggcord.mobile.discord/files", candidateVersion: manifest.version, candidateHash: digest },
-  { getConstants: () => ({ DocumentsDirPath: "/data/data/cc.moggcord.mobile.discord/files" }), writeFile() {} },
+    filesDir: "/data/data/cc.moggcord.mobile.discord/files", candidateVersion: manifest.version, candidateHash: digest },
+  { getConstants: () => ({ DocumentsDirPath: "/data/user/0/cc.moggcord.mobile.discord/files/" }), writeFile() {} },
   async (name, data) => { writes.push({ name, data }); });
   assert.throws(() => bridge.verify(signed({ ...manifest, discordBuild: "352017" })), /Discord build/);
   assert.throws(() => bridge.verify(signed({ ...manifest, platform: "ios" })), /Discord build/);
@@ -126,4 +126,18 @@ test("Android checks its own signed feed, verifies the download, then stages and
   await bridge.confirm("0.4.14");
   await bridge.confirm(manifest.version);
   assert.deepEqual(writes[1], { name: "moggcord-updates/confirmed.txt", data: digest });
+});
+
+test("the Android updater requires the loader and the file module to use the same app directory", () => {
+  const files = {
+    getConstants: () => ({ DocumentsDirPath: "/data/user/10/cc.moggcord.mobile.discord/files" }),
+    writeFile() {},
+  };
+  assert.equal(createAndroidUpdaterBridge(undefined, files, () => {}), undefined);
+  assert.equal(createAndroidUpdaterBridge({
+    apiVersion: 1, filesDir: "/data/data/cc.moggcord.mobile.discord/files",
+  }, files, () => {}), undefined);
+  assert.equal(createAndroidUpdaterBridge({
+    apiVersion: 1, filesDir: "/data/user/10/cc.moggcord.mobile.discord/files",
+  }, files, () => {}).platform, "android");
 });
